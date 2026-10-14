@@ -34,18 +34,99 @@
 #   .polyforge/release.sh <major|minor|patch|X.Y.Z>
 #   e.g. .polyforge/release.sh patch    # 0.0.20 -> 0.0.21
 #
+#   .polyforge/release.sh --verify <X.Y.Z>
+#   Read-only verification mode for the polyforge release bundle's `verify`
+#   step (it distrusts the release step and re-checks everything itself):
+#   the tag exists on origin, is annotated, carries a non-empty message,
+#   the package.json at that tag is exactly <X.Y.Z>, the commit is reachable
+#   from origin/main, and (soft check) the npm artifact is visible. Never
+#   mutates the worktree, branches or the release state; the only git writes
+#   are ref fetches (remote-tracking refs and, if absent, the tag ref).
+#
 # Exit contract: 0 = released (version bumped, green bar passed, annotated
 # tag v<version> pushed to origin); nonzero = release failed. On failure
 # before the release commit, package.json / package-lock.json are restored
 # and nothing was committed or pushed; on failure after the commit, the
 # local commit and tag exist and the retry is `git push origin refs/tags/v<version>`.
+# --verify: 0 = every hard check passed; 1 = a check failed (reason printed);
+# 2 = usage error.
 set -euo pipefail
 
 log() { echo "release: $*" >&2; }
 die() { echo "release: FATAL: $*" >&2; exit 1; }
 
+# --- read-only --verify mode ---------------------------------------------
+# Runs BEFORE any release machinery: no trap, no rollback scaffolding, no
+# mutation of the working tree. The release bundle's `verify` step calls this
+# with the version the release step reported.
+verify_mode() {
+  V="$1"
+  echo "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "release: --verify: version must be X.Y.Z, got '$V'" >&2; exit 2; }
+  REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+  cd "$REPO_ROOT"
+  ORIGIN_URL="$(git config --get remote.origin.url)" || { echo "release: --verify: no origin remote" >&2; exit 1; }
+  case "$ORIGIN_URL" in
+    git@github.com:yingfang-ai/yf-app.git | https://github.com/yingfang-ai/yf-app.git | https://github.com/yingfang-ai/yf-app) ;;
+    *) echo "release: --verify: origin is '$ORIGIN_URL' — only yingfang-ai/yf-app is releasable" >&2; exit 1 ;;
+  esac
+  TAG="v$V"
+
+  # ① the tag exists on origin (the only publish surface)
+  REMOTE_TAG="$(git ls-remote --tags origin "refs/tags/$TAG" || true)"
+  [ -n "$REMOTE_TAG" ] || { echo "release: --verify: tag $TAG not found on origin" >&2; exit 1; }
+  REMOTE_SHA="$(echo "$REMOTE_TAG" | awk '{print $1}')"
+  # dereference ^{} if present (annotated tags): prefer the peeled commit
+  PEELED="$(git ls-remote --tags origin "refs/tags/$TAG^{}" || true)"
+  [ -n "$PEELED" ] && REMOTE_SHA="$(echo "$PEELED" | awk '{print $1}')"
+
+  # ② fetch the tag locally (read-only for the worktree; a clobbering fetch
+  #    errors out, which is exactly the divergence signal we want)
+  git fetch --quiet --no-tags origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || \
+    { echo "release: --verify: local tag $TAG diverges from origin (or fetch failed)" >&2; exit 1; }
+  git rev-parse -q --verify "$TAG^{commit}" >/dev/null || { echo "release: --verify: $TAG does not resolve to a commit" >&2; exit 1; }
+
+  # ③ annotated tag (this repo's releases are annotated by release.sh)
+  [ "$(git cat-file -t "$TAG")" = "tag" ] || { echo "release: --verify: $TAG is not an annotated tag" >&2; exit 1; }
+
+  # ④ the tag points at the version it claims
+  TAG_VERSION="$(git show "$TAG:package.json" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version' 2>/dev/null || true)"
+  [ "$TAG_VERSION" = "$V" ] || { echo "release: --verify: package.json at $TAG is '$TAG_VERSION', expected '$V'" >&2; exit 1; }
+
+  # ⑤ the tag message (release notes) is non-empty
+  TAG_MSG="$(git tag -l --format='%(contents)' "$TAG" | head -c 200)"
+  [ -n "$(echo "$TAG_MSG" | tr -d '[:space:]')" ] || { echo "release: --verify: tag $TAG message is empty" >&2; exit 1; }
+
+  # ⑥ the release commit landed via PR (reachable from origin/main)
+  git fetch --quiet origin main 2>/dev/null || true
+  git merge-base --is-ancestor "$TAG" origin/main 2>/dev/null || \
+    { echo "release: --verify: $TAG is not reachable from origin/main (release before merge? changes land via PR)" >&2; exit 1; }
+
+  # ⑦ soft: the npm artifact (published asynchronously by release.yml)
+  NPM_V="$(timeout 30 npm view "yf-app@$V" version 2>/dev/null || true)"
+  if [ "$NPM_V" = "$V" ]; then
+    NPM_NOTE="published"
+  else
+    NPM_NOTE="PENDING (release.yml publishes on tag push; retry verify)"
+  fi
+
+  cat <<EOF
+VERIFY OK
+version: $V
+tag: $TAG (annotated) @ $REMOTE_SHA on origin yingfang-ai/yf-app
+tag_version: $TAG_VERSION (package.json at tag)
+release_notes: non-empty (first 200 chars: ${TAG_MSG:0:200})
+reachable_from: origin/main
+npm: $NPM_NOTE
+EOF
+  exit 0
+}
+
+if [ "$#" -eq 2 ] && [ "$1" = "--verify" ]; then
+  verify_mode "$2"
+fi
+
 if [ "$#" -ne 1 ]; then
-  echo "usage: $0 <major|minor|patch|X.Y.Z>" >&2
+  echo "usage: $0 <major|minor|patch|X.Y.Z> | --verify <X.Y.Z>" >&2
   exit 2
 fi
 BUMP="$1"
