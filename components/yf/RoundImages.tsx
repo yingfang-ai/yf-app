@@ -66,6 +66,7 @@ export function RoundImages({
           data-idx={slot.idx}
         >
           {slot.status === "ready" && slot.url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- presigned 的临时 URL 带签名与过期时间，不应进图片优化器（next/image 已 unoptimized）。
             <img
               src={slot.url}
               alt={`第 ${slot.idx + 1} 张候选图`}

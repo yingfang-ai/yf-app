@@ -1985,3 +1985,20 @@ span.token.table {
     white-space: pre;
   }
 }
+
+/* ═══ yf-app：窄视口可用底线 ═══
+   桌面优先；窄视口允许降级为简陋单列，但必须可读、可滚动、可操作
+   （spec「部署/UI」Requirement 的响应式底线）。 */
+@media (max-width: 640px) {
+  body {
+    font-size: 15px;
+  }
+  /* 任何图片都不允许撑破视口宽度。 */
+  img {
+    max-width: 100%;
+  }
+  /* 等宽长文本（user_id / round_id / presign URL）在窄容器内可断行。 */
+  .font-mono {
+    overflow-wrap: anywhere;
+  }
+}
