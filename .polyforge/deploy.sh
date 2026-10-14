@@ -194,9 +194,11 @@ stop_server() {
 
 start_server() {
   local target="$1"   # releases/vX.Y.Z（相对 DEPLOY_ROOT）
+  # setsid：服务进程脱离部署调用的进程组——部署命令被中断/杀死时
+  # 不连坐服务（nohup 只掋 SIGHUP，掋不掉整组 SIGTERM）。
   ( cd "$DEPLOY_ROOT/$target" && \
     set -a && . "$ENV_FILE" && set +a && \
-    nohup node_modules/.bin/next start -H "$HOST" -p "$PORT" \
+    setsid nohup node_modules/.bin/next start -H "$HOST" -p "$PORT" \
       >> "$DEPLOY_ROOT/state/app.log" 2>&1 & echo $! > "$DEPLOY_ROOT/state/app.pid" )
 }
 
