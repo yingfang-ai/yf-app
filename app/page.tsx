@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GuideChat } from "@/components/yf/GuideChat";
 import { initialRequest, RequestCard, type RequestState } from "@/components/yf/RequestCard";
-import { createConv, guide, listConvs, logout, YfUnauthorizedError } from "@/lib/yf/api";
+import { createConv, guide, listConvs, logout, YfApiError, YfUnauthorizedError } from "@/lib/yf/api";
 import { defaultBackend, findBackend } from "@/lib/yf/backends";
 import {
   appendGuideTurn,
@@ -12,7 +12,10 @@ import {
   loadGuideHistory,
   type GuideTurn,
 } from "@/lib/yf/guide-store";
+import { pollRoundUntilTerminal } from "@/lib/yf/round-poll";
+import { submitWork } from "@/lib/yf/submit";
 import type { GuideDraft, GuideMessage } from "@/lib/yf/guide-protocol";
+import type { Round } from "@/lib/yf/types";
 import { clearSavedUser, getSavedUserId } from "@/lib/yf/auth-store";
 
 /** 引导回复里的草案 → 请求成形卡状态（后端上限钳制 n；seed 缺省 -1）。 */
@@ -45,6 +48,9 @@ export default function Workbench() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [resumableConv, setResumableConv] = useState<string | null>(null);
+  const [trackedRound, setTrackedRound] = useState<Round | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const pollAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,9 +120,59 @@ export default function Workbench() {
 
   const discardThread = () => {
     if (convId) clearGuideHistory(convId);
+    pollAbort.current?.abort();
+    setTrackedRound(null);
     setConvId(null);
     setTurns([]);
     setRequest(initialRequest(defaultBackend()));
+  };
+
+  /** 下单：202 取 round_id → GET 轮询至终态。错误信封如实呈现。 */
+  const submitRequest = async () => {
+    if (!convId || submitting || request.prompt.trim().length === 0) return;
+    setSubmitting(true);
+    setError("");
+    setTrackedRound(null);
+    pollAbort.current?.abort();
+    const controller = new AbortController();
+    pollAbort.current = controller;
+    try {
+      const { round } = await submitWork(convId, request);
+      setTrackedRound({
+        round_id: round.round_id,
+        conv_id: convId,
+        parent_round_id: null,
+        branch_kind: "refine",
+        state: "queued",
+        n: round.n,
+        seed: request.seed,
+        model_id: "",
+        backend_id: round.backend_id,
+        hold_micros: round.hold_micros,
+        enqueued_at: round.enqueued_at,
+      });
+      const terminal = await pollRoundUntilTerminal(round.round_id, {
+        signal: controller.signal,
+        onTick: (observed) => setTrackedRound(observed),
+      });
+      if (terminal.state !== "done") {
+        setError(`本轮未完成（${terminal.state === "cancelled" ? "已取消" : "生成失败"}），积分不会结算为图片。`);
+      }
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      if (err instanceof YfUnauthorizedError) {
+        window.location.replace("/login");
+        return;
+      }
+      if (err instanceof YfApiError) {
+        const detail = err.details?.map((item) => item.detail ?? item.kind).join("；");
+        setError(detail ? `${err.message}（${detail}）` : err.message);
+      } else {
+        setError(err instanceof Error ? err.message : "下单失败，请稍后重试。");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const signOut = async () => {
@@ -190,6 +246,28 @@ export default function Workbench() {
             active={hasThread}
           />
         </div>
+        {hasThread ? (
+          <div className="mt-3 flex justify-center">
+            <button
+              type="button"
+              onClick={submitRequest}
+              disabled={submitting || request.prompt.trim().length === 0}
+              className="rounded bg-accent px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {submitting ? "下单中…" : "生成"}
+            </button>
+          </div>
+        ) : null}
+        {trackedRound ? (
+          <section aria-label="轮次追踪" className="mx-auto mt-3 w-full max-w-[48rem] rounded border border-border bg-bg-panel px-4 py-3 text-sm">
+            <p>
+              本轮状态：
+              <span className="font-mono">{trackedRound.state}</span>
+              {trackedRound.state === "done" ? " —— 生成完成，读面即将呈现。" : "（仅靠 GET 轮询感知，无推送）"}
+            </p>
+            <p className="mt-1 font-mono text-xs text-text-muted">round_id: {trackedRound.round_id}</p>
+          </section>
+        ) : null}
         {error ? (
           <p className="mt-2 text-center text-sm text-red-500" role="alert" aria-live="polite">{error}</p>
         ) : null}
