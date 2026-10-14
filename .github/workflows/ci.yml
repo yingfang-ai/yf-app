@@ -44,6 +44,11 @@ jobs:
         with:
           repository: yingfang-ai/yingfang
           path: repos/yingfang
+          # The sibling contract repo is private: the default GITHUB_TOKEN is
+          # scoped to this repo only and answers 404 for it. The
+          # fine-grained read-only PAT in this secret (Contents: read-only on
+          # yingfang-ai/yingfang) carries the cross-repo checkout.
+          token: ${{ secrets.YINGFANG_CHECKOUT_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
