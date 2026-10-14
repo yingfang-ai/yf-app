@@ -1,9 +1,8 @@
-import { enLocale } from "./messages/en";
 import { zhCNLocale } from "./messages/zh-CN";
-import { zhTWLocale } from "./messages/zh-TW";
 import type { Locale, LocalePlugin } from "./types";
 
-const localePlugins: LocalePlugin[] = [enLocale, zhCNLocale, zhTWLocale];
+// yf-app 仅内置简体中文（zh-CN 单 locale；spec「部署/UI」Requirement）。
+const localePlugins: LocalePlugin[] = [zhCNLocale];
 
 /**
  * 根据标识获取已注册的语言包。
@@ -20,22 +19,11 @@ export function getSupportedLocales(): string[] {
 }
 
 /**
- * 将浏览器语言列表解析为 Pi Web 内置语言。
- * @param languages 浏览器按优先级排列的语言列表
- * @returns 匹配的内置语言，无法匹配时返回英语
+ * 将浏览器语言列表解析为 yf-app 的内置语言。
+ * @param _languages 浏览器按优先级排列的语言列表（保留参数位以兼容调用方；zh-CN 是唯一内置语言）
+ * @returns 恒为 zh-CN（不做多语言降级）
  */
-export function resolveBrowserLocale(languages: readonly string[]): Locale {
-  for (const language of languages) {
-    const normalized = language.toLowerCase();
-    if (normalized === "en" || normalized.startsWith("en-")) return "en";
-    if (normalized === "zh" || normalized === "zh-cn" || normalized.startsWith("zh-cn-")
-      || normalized === "zh-sg" || normalized.startsWith("zh-sg-")
-      || normalized === "zh-hans" || normalized.startsWith("zh-hans-")) return "zh-CN";
-    if (normalized === "zh-tw" || normalized.startsWith("zh-tw-")
-      || normalized === "zh-hk" || normalized.startsWith("zh-hk-")
-      || normalized === "zh-mo" || normalized.startsWith("zh-mo-")
-      || normalized === "zh-hant" || normalized.startsWith("zh-hant-")) return "zh-TW";
-    if (normalized.startsWith("zh-")) return "zh-CN";
-  }
-  return "en";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 参数保留以兼容调用方签名。
+export function resolveBrowserLocale(_languages: readonly string[]): Locale {
+  return "zh-CN";
 }

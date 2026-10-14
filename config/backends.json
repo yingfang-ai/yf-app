@@ -1,0 +1,30 @@
+{
+  "$comment": "yf-app 内置静态后端/模型清单（打包内置，运行时零网络列表请求）。backend_id 必须与 yingfang 注册表中的条目一致；param_fields 定义专家模式高级面板的可编辑参数（值一律字符串下推）。n 的上限是一轮张数的产品形态值（D16：8 张）；契约护栏 S4=16 由 yingfang 入队闸执行。",
+  "version": 1,
+  "backends": [
+    {
+      "backend_id": "zimage-turbo",
+      "label": "Z-Image-Turbo",
+      "description": "8 步快速文生图，1024×1024",
+      "default_n": 4,
+      "max_n": 8,
+      "supports_negative_prompt": true,
+      "param_fields": [
+        {
+          "key": "width",
+          "label": "宽度",
+          "kind": "select",
+          "options": ["1024"],
+          "default": "1024"
+        },
+        {
+          "key": "height",
+          "label": "高度",
+          "kind": "select",
+          "options": ["1024"],
+          "default": "1024"
+        }
+      ]
+    }
+  ]
+}
