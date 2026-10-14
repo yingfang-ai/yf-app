@@ -11,12 +11,9 @@ const chatInputSource = await readFile(new URL("./ChatInput.tsx", import.meta.ur
 const extensionStatusBarSource = await readFile(new URL("./ExtensionStatusBar.tsx", import.meta.url), "utf8");
 const viewportHookSource = await readFile(new URL("../hooks/useViewportHeight.ts", import.meta.url), "utf8");
 
-test("configures iOS standalone mode to use the full screen", () => {
-  assert.match(layoutSource, /statusBarStyle: "black-translucent"/);
-  assert.match(layoutSource, /viewportFit: "cover"/);
-  assert.match(layoutSource, /interactiveWidget: "resizes-content"/);
-  assert.match(cssSource, /@media \(display-mode: standalone\) \{[\s\S]*?--app-viewport-height: 100vh;/);
-});
+// The iOS standalone-mode test was removed with the PWA/mobile shell face
+// (a declared non-goal for yf-app); the layout no longer carries
+// statusBarStyle/interactiveWidget standalone metadata.
 
 test("reserves safe-area insets only where the scenario needs them (pi#1)", () => {
   // Mobile browsers already lay out below the browser chrome, so the

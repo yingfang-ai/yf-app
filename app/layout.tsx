@@ -7,15 +7,15 @@ import "./globals.css";
 import "./settings.css";
 
 const notoSansMono = Noto_Sans_Mono({
-  subsets: ["latin", "cyrillic"],
+  subsets: ["latin"],
   variable: "--font-noto-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Pi Web",
-  description: "Pi Web interface for the pi coding agent",
-  applicationName: "Pi Web",
+  title: "yf-app",
+  description: "yf-app — C 端图像创作工作台：一句话起步，引导对话，产图勾选定稿",
+  applicationName: "yf-app",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -33,11 +33,6 @@ export const metadata: Metadata = {
       },
     ],
   },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Pi Web",
-  },
   formatDetection: {
     telephone: false,
   },
@@ -47,7 +42,6 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#1a1a1a" },
@@ -60,7 +54,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" translate="no" className={`${notoSansMono.variable} notranslate`} suppressHydrationWarning>
+    <html lang="zh-CN" translate="no" className={`${notoSansMono.variable} notranslate`} suppressHydrationWarning>
       <head>
         <meta name="google" content="notranslate" />
         <script
