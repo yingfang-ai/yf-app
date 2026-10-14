@@ -1,6 +1,6 @@
 {
   "name": "yf-app",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "description": "yf-app — C 端图像创作工作台（pi-web v0.0.20 永久分叉）：邀请码注册、一句话起步、LLM 引导对话、按 yingfang 契约下单产图",
   "license": "MIT",
   "engines": {
