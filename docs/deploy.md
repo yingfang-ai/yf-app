@@ -101,25 +101,26 @@ server {
 ### 本地部署（deploy.sh）
 
 ```bash
-# 一次性准备：部署根与运行环境（key 永不进仓库）
-mkdir -p ~/deploy/yf-app/shared
-cat > ~/deploy/yf-app/shared/env <<'ENV'
+# 一次性准备：运行环境（XDG 配置位，与部署产物分离；key 永不进仓库）
+mkdir -p ~/.config/yf-app
+cat > ~/.config/yf-app/env <<'ENV'
 YF_LLM_API_KEY=sk-...          # 必填，缺失 = 拒绝部署（fail closed）
 YF_LLM_BASE_URL=https://...    # 可选
 YF_LLM_MODEL=...               # 可选
 ENV
-chmod 600 ~/deploy/yf-app/shared/env
+chmod 600 ~/.config/yf-app/env
 
 # 部署某个已发版版本
-.polyforge/deploy.sh 0.0.21 --confirm 0.0.21
+.polyforge/deploy.sh 0.0.1 --confirm 0.0.1
 
 # 查看状态 / 历史
 .polyforge/deploy.sh --status
 ```
 
 部署根布局：`releases/v<版本>/`（tag 导出 + 构建产物）、`current`（原子换的
-稳定符号链接）、`shared/env`（运行凭据）、`state/`（pid / 日志 / 部署历史）、
-`deploy.lock`（主机侧锁，并发部署即拒）。
+稳定符号链接）、`state/`（pid / 日志 / 部署历史）、`deploy.lock`（主机侧锁，
+并发部署即拒）。运行环境在 `~/.config/yf-app/env`（`YF_APP_ENV_FILE` 可
+覆盖，600 权限），不随 releases 轮转清理——凭据不随产物走。
 
 **防线一览**：`--confirm` 等值防线（拒绝 latest/别名）；只部署 origin 上存在的
 tag 且本地复核 tag 处版本号；构建前 fail closed 检查 LLM key；健康检查
