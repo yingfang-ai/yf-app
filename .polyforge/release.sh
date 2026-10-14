@@ -32,7 +32,13 @@
 #
 # Usage (run from anywhere; the script resolves its own repo root):
 #   .polyforge/release.sh <major|minor|patch|X.Y.Z>
-#   e.g. .polyforge/release.sh patch    # 0.0.20 -> 0.0.21
+#   e.g. .polyforge/release.sh patch    # 0.0.1 -> 0.0.2
+#
+#   Versioning epoch (2026-10-14): yf-app restarts at 0.0.1 — the inherited
+#   pi-web tags (v0.0.1…v0.0.20) and the void v0.0.21 (never published: the
+#   tag-push trigger was dead) were deleted; the initial v0.0.1 was cut
+#   manually (green bar + annotated tag + push + workflow_dispatch). From
+#   0.0.2 on, this script is the only release path.
 #
 #   .polyforge/release.sh --verify <X.Y.Z>
 #   Read-only verification mode for the polyforge release bundle's `verify`
