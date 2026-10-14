@@ -27,24 +27,37 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm test
 
+  # Acceptance bar (e2e/yf-acceptance.mjs): self-managed Next dev server on a
+  # free loopback port, no credentials needed. S-E2E-25 additionally asserts
+  # the sibling contract repo repos/yingfang is untouched, so both repos are
+  # checked out side by side, mirroring the capsule layout the suite expects
+  # (run cwd: repos/yf-app, sibling: ../yingfang). The legacy playwright job
+  # was removed in step4 strip_coding_agent together with `npm run test:e2e`.
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: repos/yf-app
+      - uses: actions/checkout@v4
+        with:
+          repository: yingfang-ai/yingfang
+          path: repos/yingfang
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
           cache: npm
+          cache-dependency-path: repos/yf-app/package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+        working-directory: repos/yf-app
       - run: npm run build
-      - run: npm run test:e2e
-        env:
-          E2E_SERVER_MODE: start
+        working-directory: repos/yf-app
+      - run: node e2e/yf-acceptance.mjs
+        working-directory: repos/yf-app
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: e2e-failure
-          path: test-results/e2e/
+          path: repos/yf-app/test-results/e2e-yf/
           retention-days: 7
