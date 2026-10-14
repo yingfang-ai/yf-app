@@ -117,6 +117,29 @@ export async function logout(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// yf-app 自有面（非 yingfang 契约端点）
+// ---------------------------------------------------------------------------
+
+export interface GuideTurnPayload {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface GuideResponse {
+  reply: string;
+  draft: import("./guide-protocol").GuideDraft | null;
+}
+
+/** POST /api/guide —— yf-app 服务端的引导代理（LLM 调用全在服务端）。 */
+export async function guide(body: { messages: GuideTurnPayload[] }): Promise<GuideResponse> {
+  const response = await yfFetch("/api/guide", {
+    method: "POST",
+    body: jsonBody(body),
+  });
+  return expectJson<GuideResponse>(response);
+}
+
+// ---------------------------------------------------------------------------
 // 会话（§2.4–2.5）
 // ---------------------------------------------------------------------------
 

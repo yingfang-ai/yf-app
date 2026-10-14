@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 // 最小同源直通。
 //
@@ -9,7 +9,7 @@ import { NextResponse, type NextRequest } from "next/server";
 //
 // 这里不再有上游 pi-web 的 web-password 门与面向 coding-agent 的请求安全逻辑：
 // 每个请求原样直通，由各路由自己处理。
-export function proxy(request: NextRequest) {
+export function proxy() {
   return NextResponse.next();
 }
 
