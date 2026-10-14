@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ConversationFeed } from "@/components/yf/ConversationFeed";
 import { GuideChat } from "@/components/yf/GuideChat";
-import { initialRequest, RequestCard, type RequestState } from "@/components/yf/RequestCard";
+import { initialRequest, RequestCard, type ParentMode, type RequestState } from "@/components/yf/RequestCard";
 import { createConv, guide, listConvs, logout, YfApiError, YfUnauthorizedError } from "@/lib/yf/api";
 import { defaultBackend, findBackend } from "@/lib/yf/backends";
 import {
@@ -13,6 +14,7 @@ import {
   type GuideTurn,
 } from "@/lib/yf/guide-store";
 import { pollRoundUntilTerminal } from "@/lib/yf/round-poll";
+import { defaultRefineParent, loadSelections, selectRoundImage } from "@/lib/yf/selection";
 import { submitWork } from "@/lib/yf/submit";
 import type { GuideDraft, GuideMessage } from "@/lib/yf/guide-protocol";
 import type { Round } from "@/lib/yf/types";
@@ -51,6 +53,9 @@ export default function Workbench() {
   const [trackedRound, setTrackedRound] = useState<Round | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const pollAbort = useRef<AbortController | null>(null);
+  const [selections, setSelections] = useState<Record<string, number | null>>({});
+  const [parentMode, setParentMode] = useState<ParentMode>("follow-selection");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +120,7 @@ export default function Workbench() {
     if (!resumableConv) return;
     setTurns(loadGuideHistory(resumableConv));
     setConvId(resumableConv);
+    setSelections(loadSelections(resumableConv));
     setResumableConv(null);
   };
 
@@ -127,6 +133,21 @@ export default function Workbench() {
     setRequest(initialRequest(defaultBackend()));
   };
 
+  /** 勾选一张图 = 定稿（同轮至多一张，契约幂等），并成为后续 refine 的默认 parent。 */
+  const pickImage = async (roundId: string, idx: number) => {
+    if (!convId) return;
+    try {
+      const { memory } = await selectRoundImage(convId, roundId, idx);
+      setSelections(memory);
+    } catch (err) {
+      if (err instanceof YfUnauthorizedError) {
+        window.location.replace("/login");
+        return;
+      }
+      setError(err instanceof YfApiError ? err.message : "勾选失败，请稍后重试。");
+    }
+  };
+
   /** 下单：202 取 round_id → GET 轮询至终态。错误信封如实呈现。 */
   const submitRequest = async () => {
     if (!convId || submitting || request.prompt.trim().length === 0) return;
@@ -136,8 +157,13 @@ export default function Workbench() {
     pollAbort.current?.abort();
     const controller = new AbortController();
     pollAbort.current = controller;
+    // 默认 parent：最近勾选的轮（branch_kind=refine）；专家模式可改为根轮或 redirect。
+    const selectedRound = defaultRefineParent(convId);
+    const parent =
+      parentMode === "root" || !selectedRound ? null
+      : { roundId: selectedRound, branchKind: parentMode === "redirect" ? ("redirect" as const) : ("refine" as const) };
     try {
-      const { round } = await submitWork(convId, request);
+      const { round } = await submitWork(convId, request, parent);
       setTrackedRound({
         round_id: round.round_id,
         conv_id: convId,
@@ -158,6 +184,7 @@ export default function Workbench() {
       if (terminal.state !== "done") {
         setError(`本轮未完成（${terminal.state === "cancelled" ? "已取消" : "生成失败"}），积分不会结算为图片。`);
       }
+      setRefreshKey((key) => key + 1);
     } catch (err) {
       if (controller.signal.aborted) return;
       if (err instanceof YfUnauthorizedError) {
@@ -244,6 +271,9 @@ export default function Workbench() {
             onChange={setRequest}
             expertMode={expertMode}
             active={hasThread}
+            parentMode={parentMode}
+            onParentModeChange={setParentMode}
+            hasSelection={convId ? defaultRefineParent(convId) !== null : false}
           />
         </div>
         {hasThread ? (
@@ -263,10 +293,21 @@ export default function Workbench() {
             <p>
               本轮状态：
               <span className="font-mono">{trackedRound.state}</span>
-              {trackedRound.state === "done" ? " —— 生成完成，读面即将呈现。" : "（仅靠 GET 轮询感知，无推送）"}
+              {trackedRound.state === "done" ? " —— 生成完成。" : "（仅靠 GET 轮询感知，无推送）"}
             </p>
             <p className="mt-1 font-mono text-xs text-text-muted">round_id: {trackedRound.round_id}</p>
           </section>
+        ) : null}
+        {convId ? (
+          <div className="mt-4">
+            <ConversationFeed
+              convId={convId}
+              trackedRound={trackedRound}
+              selections={selections}
+              onSelect={pickImage}
+              refreshKey={refreshKey}
+            />
+          </div>
         ) : null}
         {error ? (
           <p className="mt-2 text-center text-sm text-red-500" role="alert" aria-live="polite">{error}</p>

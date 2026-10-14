@@ -13,6 +13,9 @@ export interface RequestState {
   params: Record<string, string>;
 }
 
+/** 专家模式下的 parent 选择：跟随勾选（默认）/ 根轮 / redirect。 */
+export type ParentMode = "follow-selection" | "root" | "redirect";
+
 /**
  * 请求成形卡。
  *
@@ -25,11 +28,17 @@ export function RequestCard({
   onChange,
   expertMode,
   active,
+  parentMode,
+  onParentModeChange,
+  hasSelection,
 }: {
   request: RequestState;
   onChange: (next: RequestState) => void;
   expertMode: boolean;
   active: boolean;
+  parentMode?: ParentMode;
+  onParentModeChange?: (mode: ParentMode) => void;
+  hasSelection?: boolean;
 }) {
   const backend = findBackend(request.backendId) ?? backendsConfig.backends[0];
 
@@ -148,6 +157,22 @@ export function RequestCard({
               </select>
             </label>
           ))}
+
+          {parentMode && onParentModeChange ? (
+            <label className="block text-sm text-text">
+              续接方式（parent）
+              <select
+                className="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm text-text"
+                value={parentMode}
+                onChange={(event) => onParentModeChange(event.target.value as ParentMode)}
+                disabled={!active}
+              >
+                <option value="follow-selection">跟随勾选（默认 refine）{hasSelection ? "" : "——尚无勾选，将作为根轮"}</option>
+                <option value="root">作为根轮重新开始</option>
+                <option value="redirect">以勾选轮为 parent 重定向（redirect）</option>
+              </select>
+            </label>
+          ) : null}
         </div>
       ) : null}
     </section>
