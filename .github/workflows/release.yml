@@ -16,6 +16,11 @@ on:
   push:
     tags:
       - "v*"
+  # Manual fallback (absorbed from upstream 2026-10-14): the tag-push
+  # trigger has been dead on GitHub since 2026-10-03 — a pushed v* tag no
+  # longer starts this workflow. Dispatch it manually after pushing the tag:
+  #   gh workflow run release.yml --ref v<version>
+  workflow_dispatch: {}
 
 permissions:
   contents: read
