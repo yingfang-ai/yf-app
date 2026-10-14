@@ -5,36 +5,19 @@ import { fileURLToPath } from "url";
 
 const configDir = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(join(configDir, "package.json"), "utf8")) as { version: string };
-let piVersion = "unknown";
-try {
-  const piPkgPath = join(configDir, "node_modules/@earendil-works/pi-coding-agent/package.json");
-  piVersion = (JSON.parse(readFileSync(piPkgPath, "utf8")) as { version: string }).version;
-} catch { /* package not found, use default */ }
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: configDir,
-  // Compress HTML and static responses with Next's built-in gzip. Direct
-  // clients that bypass the edge reverse proxy — the Electron desktop shell
-  // currently targets the raw IP:port — would otherwise pull several MB of
-  // uncompressed JS chunks on a slow link (measured 2026-09-27: a 1.1 MB
-  // static chunk serves as ~380 KB gzipped, -67%). Clients reaching the
-  // server through Caddy are unaffected: Caddy passes through responses that
-  // already carry content-encoding, so its own `encode zstd gzip` layer
-  // keeps serving domain clients and nothing is double-compressed.
-  // (Compress was disabled in pi#40 to work around a since-removed mobile
-  // shell's HTML proxy and kept off as an unneeded behavior change; the
-  // direct-IP gap was measured on 2026-09-27 and it is re-enabled here.)
+  // Compress HTML and static responses with Next's built-in gzip. Clients that
+  // bypass the reverse proxy on a slow link would otherwise pull multi-MB JS
+  // chunks uncompressed; proxy-fronted clients are unaffected (the proxy passes
+  // through responses that already carry content-encoding).
   compress: true,
-  experimental: {
-    // proxy.ts matches /api/:path*, and Next buffers the request body whenever
-    // a proxy is present, capped at 10 MB by default. The upload route accepts
-    // up to 100 MB per request, so raise the buffer above that or large uploads
-    // are truncated and fail with "Failed to parse body as FormData."
-    proxyClientMaxBodySize: "128mb",
-  },
-  // next/image is only used for the static logo, so the /_next/image optimizer
+  // next/image is only used for static icons, so the /_next/image optimizer
   // (and its sharp/libheif attack surface, see GHSA-2xp9-vwfh-vxw4) is not needed.
   images: { unoptimized: true },
+  // Legacy pi-web native/agent packages still present in the dependency tree
+  // until the coding-agent strip lands; they must stay external to the bundle.
   serverExternalPackages: [
     "node-pty",
     "undici",
@@ -78,27 +61,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/sw.js",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
-          { key: "Service-Worker-Allowed", value: "/" },
-        ],
-      },
-      {
         source: "/manifest.webmanifest",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
-        ],
-      },
-      {
-        // Digital Asset Links for the Android TWA shell (pi#40). Must stay
-        // reachable WITHOUT the web-password gate — the browser's TWA
-        // verification fetches it unauthenticated. proxy.ts's matcher
-        // (["/", "/login", "/api/:path*"]) never matches this path, so no
-        // proxy change is needed. Regenerate per APK re-sign with
-        // mobile-twa/scripts/assetlinks.sh; max-age=0 so Chrome re-verifies
-        // right after an APK re-sign instead of serving a stale statement.
-        source: "/.well-known/assetlinks.json",
         headers: [
           { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
         ],
@@ -107,7 +70,6 @@ const nextConfig: NextConfig = {
   },
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
-    NEXT_PUBLIC_PI_VERSION: piVersion,
   },
 };
 

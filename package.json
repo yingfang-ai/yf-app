@@ -1,26 +1,12 @@
 {
-  "name": "@silgrid/pi-web",
+  "name": "yf-app",
   "version": "0.0.20",
-  "description": "Fork of @agegr/pi-web: local web UI for the pi coding agent with split-pane chat and background task panels",
-  "homepage": "https://github.com/silgrid/pi-web#readme",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/silgrid/pi-web.git"
-  },
-  "bugs": {
-    "url": "https://github.com/silgrid/pi-web/issues"
-  },
+  "description": "yf-app — C 端图像创作工作台（pi-web v0.0.20 永久分叉）：邀请码注册、一句话起步、LLM 引导对话、按 yingfang 契约下单产图",
   "license": "MIT",
   "engines": {
     "node": ">=22.19.0"
   },
-  "bin": {
-    "pi-web": "bin/pi-web.js",
-    "pi-web-deploy": "bin/pi-web-deploy.js"
-  },
   "files": [
-    "bin",
-    "deploy-piweb.sh",
     ".next",
     "!.next/cache",
     "!.next/dev",
@@ -37,10 +23,7 @@
     "start": "next start -H 127.0.0.1 -p 30141",
     "start:lan": "next start -H 0.0.0.0 -p 30141",
     "lint": "eslint .",
-    "test:terminal": "node e2e/terminal.mjs",
-    "test:e2e": "node --experimental-strip-types e2e/run.mjs",
-    "test": "node --experimental-strip-types --test \"app/**/*.test.mjs\" \"components/**/*.test.mjs\" \"hooks/**/*.test.mjs\" \"lib/**/*.test.mjs\" \"public/**/*.test.mjs\"",
-    "release": "npm version patch --no-git-tag-version && npm run build && npm publish --access public"
+    "test": "node --experimental-strip-types --test \"app/**/*.test.mjs\" \"components/**/*.test.mjs\" \"hooks/**/*.test.mjs\" \"lib/**/*.test.mjs\" \"public/**/*.test.mjs\""
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.87.1",
