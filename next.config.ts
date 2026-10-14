@@ -16,17 +16,6 @@ const nextConfig: NextConfig = {
   // next/image is only used for static icons, so the /_next/image optimizer
   // (and its sharp/libheif attack surface, see GHSA-2xp9-vwfh-vxw4) is not needed.
   images: { unoptimized: true },
-  // Legacy pi-web native/agent packages still present in the dependency tree
-  // until the coding-agent strip lands; they must stay external to the bundle.
-  serverExternalPackages: [
-    "node-pty",
-    "undici",
-    "web-push",
-    "@earendil-works/pi-coding-agent",
-    "@earendil-works/pi-agent-core",
-    "@earendil-works/pi-ai",
-    "@earendil-works/pi-tui",
-  ],
   // Next 16 blocks cross-origin access to dev resources by default. Allow the
   // loopback and the RFC1918 LAN ranges so the dev server stays reachable
   // from other machines on the same LAN.

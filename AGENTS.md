@@ -46,3 +46,13 @@ Browser                Next.js Server                yingfang API
 - UI 仅简体中文；桌面优先，窄视口可用即可。
 - Next.js 可能在 `AGENTS.md` 追加生成的 `BEGIN:nextjs-agent-rules` 块；那是工具输出，
   不要混进无关提交。
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

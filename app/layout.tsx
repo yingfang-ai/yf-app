@@ -1,10 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Mono } from "next/font/google";
-import { PwaRegistration } from "@/components/PwaRegistration";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
-import "katex/dist/katex.min.css";
 import "./globals.css";
-import "./settings.css";
 
 const notoSansMono = Noto_Sans_Mono({
   subsets: ["latin"],
@@ -65,7 +62,6 @@ export default function RootLayout({
       </head>
       <body translate="no" className="notranslate" suppressHydrationWarning>
         {children}
-        <PwaRegistration />
       </body>
     </html>
   );
