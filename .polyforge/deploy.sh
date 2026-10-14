@@ -12,29 +12,34 @@
 #   —— 主机侧锁（flock）：同一部署根上并发部署直接拒绝；
 #   —— 失败自动回滚：健康检查不过 ⇒ 停新服务、current 指回上一个版本、重启，
 #      procedure 以「新版本在线」或「已回滚」结束，回滚 = 本脚本 exit 非零；
-#   —— 凭据两分：tag-push 凭据（git）与运行时凭据（shared/env 里的
-#      YF_LLM_*，LLM 引导代理的 key）彼此独立，后者永不进仓库。
+# 凭据两分（合同不变，位置更新）：tag-push 凭据（git）与运行时凭据
+# （~/.config/yf-app/env 里的 YF_LLM_*，引导代理的 key）彼此独立，
+# 后者永不进仓库、永不进部署产物。
+#
+# fail closed（缺配置 = 拒绝部署，而不是部署一个起不来/没引导的实例）：
+#   ~/.config/yf-app/env 必须存在且 YF_LLM_API_KEY 非空。这个检查发生在
+#   **构建之前**，所以一次缺 key 的部署不会留下任何构建产物。
 #
 # 本地部署形态（对应 docs/deploy.md 的同源反代拓扑，本机 pilot 版）：
 #
 #   <deploy-root>/            默认 ~/deploy/yf-app，可用 YF_APP_DEPLOY_ROOT 覆盖
 #     releases/v<version>/    从 tag 导出的源码树 + node_modules + .next 产物
 #     current -> releases/v<version>   原子换的稳定符号链接（相对目标，树可搬迁）
-#     shared/env              运行环境（YF_LLM_API_KEY 等；fail closed，见下）
 #     state/app.pid           当前服务 pid
 #     state/app.log           服务 stdout/stderr
 #     state/deploy-history.log  每次部署/回滚一行记账
 #     deploy.lock             主机侧锁（flock）
+#
+#   运行环境（凭据/配置）与部署产物分离：环境文件在 XDG 配置位
+#     ~/.config/yf-app/env     （可用 YF_APP_ENV_FILE 覆盖；600 权限），
+#   不在部署根里——releases 会被轮转清理，凭据不随产物走；这与机器上
+#   其它服务的惯例一致（polyforge 的 cli.toml 同在 ~/.config/）。
 #
 #   服务监听 127.0.0.1:$YF_APP_PORT（默认 30141，与 package.json 一致）。
 #   生产拓扑里对外暴露的是反代（见 docs/deploy.md），本地 pilot 直接访问
 #   http://127.0.0.1:<port>/；要让「注册→对话→下单」整链走通，还需要
 #   yingfang app/api（:9701）与一个按路径分流的本地反代——那是部署文档的
 #   事，本脚本只负责 yf-app 自己这一个面。
-#
-# fail closed（缺配置 = 拒绝部署，而不是部署一个起不来/没引导的实例）：
-#   shared/env 必须存在且 YF_LLM_API_KEY 非空。这个检查发生在**构建之前**，
-#   所以一次缺 key 的部署不会留下任何构建产物。
 #
 # Usage:
 #   .polyforge/deploy.sh <X.Y.Z> --confirm <X.Y.Z>    # 部署（或幂等命中）
@@ -101,7 +106,7 @@ DEPLOY_ROOT="${YF_APP_DEPLOY_ROOT:-$HOME/deploy/yf-app}"
 PORT="${YF_APP_PORT:-30141}"
 HOST="${YF_APP_HOST:-127.0.0.1}"
 HEALTH_URL="http://$HOST:$PORT/"
-mkdir -p "$DEPLOY_ROOT/releases" "$DEPLOY_ROOT/state" "$DEPLOY_ROOT/shared"
+mkdir -p "$DEPLOY_ROOT/releases" "$DEPLOY_ROOT/state"
 LOCK="$DEPLOY_ROOT/deploy.lock"
 
 current_version() { readlink "$DEPLOY_ROOT/current" 2>/dev/null | sed 's|^releases/||' || true; }
@@ -139,8 +144,10 @@ TAG_VERSION="$(git show "$TAG:package.json" | node -pe 'JSON.parse(require("fs")
 [ "$TAG_VERSION" = "$VERSION" ] || die "package.json at $TAG is '${TAG_VERSION:-unreadable}', expected '$VERSION' — refusing to deploy a version that does not match its own tag"
 
 # ─── fail closed：运行环境在构建之前检查 ─────────────────────────────────────
-ENV_FILE="$DEPLOY_ROOT/shared/env"
-[ -f "$ENV_FILE" ] || die "missing $ENV_FILE — create it first (see docs/deploy.md: YF_LLM_API_KEY required; the key never enters the repo)"
+# XDG 配置位（~/.config/yf-app/env），与部署产物分离：releases 会被轮转清理，
+# 凭据不随产物走。可用 YF_APP_ENV_FILE 覆盖。
+ENV_FILE="${YF_APP_ENV_FILE:-$HOME/.config/yf-app/env}"
+[ -f "$ENV_FILE" ] || die "missing $ENV_FILE — create it first (see docs/deploy.md: YF_LLM_API_KEY required; the key never enters the repo or any release dir)"
 grep -Eq '^YF_LLM_API_KEY=.+' "$ENV_FILE" || die "$ENV_FILE lacks a non-empty YF_LLM_API_KEY — refusing to deploy a guide-less instance (fail closed)"
 
 # ─── 幂等命中 ─────────────────────────────────────────────────────────────────
