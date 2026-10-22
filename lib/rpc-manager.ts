@@ -1,6 +1,7 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, ModelRuntime, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import { isUserDataCwd } from "./yf/user-dirs";
+import { loadGuideSkillPrompt } from "./yf/guide-skill";
 import { LLM_CHANNEL_PROVIDER_ID, llmChannelModelRuntime, readLlmConfig } from "./yf/llm-config";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import { randomUUID } from "crypto";
@@ -2742,7 +2743,11 @@ export async function startRpcSession(
     const exactSystemPrompt = subagentResources
       ? skillsBinding!.getExactSystemPrompt
       : chatOnly
-        ? () => contextFilesSystemPrompt(inner.resourceLoader.getAgentsFiles().agentsFiles)
+        ? () => [
+            // 普通用户会话默认就在引导 skill 里（yingfang#28 R8）；运营者的 chat-only 不受影响。
+            ...(userChatSession ? [loadGuideSkillPrompt()] : []),
+            contextFilesSystemPrompt(inner.resourceLoader.getAgentsFiles().agentsFiles),
+          ].filter(Boolean).join("\n\n")
         : undefined;
     exactSystemPromptRef.current = exactSystemPrompt;
     const mcpHost = builtins?.mcpHost ?? subagentMcp?.mcpHost;
