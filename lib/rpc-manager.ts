@@ -11,7 +11,6 @@ import { resolveVisibleModels, selectInitialModelScope } from "./model-scope";
 import { findDeferredModel, rememberProviderModels } from "./deferred-provider-models";
 import {
   createProjectCommandBashExtension,
-  createProjectCommandBashOperations,
   preferUserBashExtension,
 } from "./project-command-env";
 import { cacheSessionPath, getLatestModelChange, invalidateSessionListCache, readLatestSessionEntryId, resolveSessionPath } from "./session-reader";
@@ -44,7 +43,6 @@ import {
 } from "./subagents";
 import { createSubagentController } from "./subagent-runtime";
 import { isBuiltInSubagentsEnabled } from "./subagent-settings";
-import { resolveShellTools } from "./powershell-settings";
 import { CHAT_ONLY_RESOURCE_LOADER_OPTIONS, contextFilesSystemPrompt } from "./chat-only";
 import { createExactSystemPromptExtension } from "./exact-system-prompt";
 import { createPiWebBuiltinExtensions, createSubagentCodemodeExtension, createSubagentMcpExtensions } from "./builtin-extensions";
@@ -271,7 +269,10 @@ export interface RpcSessionStartOptions {
   thinkingLevel?: ThinkingLevel;
 }
 
-const CODING_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"];
+const CODING_TOOL_NAMES = ["read", "edit", "write", "grep", "find", "ls"];
+// 主机 shell 对所有人移除（yingfang#28 R4，运营者也没有）：每条会话创建路径都带这份
+// 拒绝名单，SDK 据此既不注册也不激活 bash/powershell；`bash` RPC 命令也已删除。
+const SHELL_TOOL_NAMES = ["bash", "powershell"];
 const THINKING_LEVEL_NAMES = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 // Extensions require a complete Theme, while the web UI applies its own styling.
@@ -324,13 +325,10 @@ export function resolveActiveToolNames(
 
   const codingToolNames = new Set(CODING_TOOL_NAMES);
   const registered = new Map(session.getAllTools().map((tool) => [tool.name, tool]));
-  const selectedToolNames = resolveShellTools(
-    requested.filter((name) => codingToolNames.has(name)),
-    session.settingsManager.getDefaultTools(),
-  );
+  const selectedToolNames = requested.filter((name) => codingToolNames.has(name));
   const carriedToolNames = carry.filter((name) => {
     const tool = registered.get(name);
-    return tool !== undefined && !codingToolNames.has(name) && tool.exposure !== "hidden";
+    return tool !== undefined && !codingToolNames.has(name) && !SHELL_TOOL_NAMES.includes(name) && tool.exposure !== "hidden";
   });
 
   return [...new Set([...selectedToolNames, ...carriedToolNames])];
@@ -1345,37 +1343,6 @@ export class AgentSessionWrapper {
 
       case "set_auto_retry": {
         this.inner.setAutoRetryEnabled(command.enabled as boolean);
-        return null;
-      }
-
-      case "bash": {
-        if (this.pendingPromptCount > 0 || this.inner.isStreaming || this.inner.isCompacting || this.inner.isBashRunning) {
-          throw new Error("Cannot run a shell command while the session is busy");
-        }
-        const execution = this.inner.executeBash(
-          command.command as string,
-          undefined,
-          {
-            excludeFromContext: command.excludeFromContext as boolean | undefined,
-            operations: createProjectCommandBashOperations({
-              shellPath: this.inner.settingsManager.getShellPath(),
-            }),
-          },
-        );
-        try {
-          const result = await execution;
-          this.persistBashOnlySession();
-          return result;
-        } finally {
-          this.resetIdleTimer();
-          invalidateSessionListCache();
-        }
-      }
-
-      case "abort_bash": {
-        this.forceShutdownOnIdle = true;
-        this.resetIdleTimer();
-        this.inner.abortBash();
         return null;
       }
 
@@ -2738,15 +2705,20 @@ export async function startRpcSession(
         ? findDeferredModel(services.modelRuntime, defaultProvider, defaultModelId)
         : undefined)
       : undefined;
+    const baseToolOptions: { tools?: string[]; excludeTools?: string[] } = subagentResources
+      ? subagentToolOptions(subagentResources)
+      : toolsOption !== undefined ? { tools: toolsOption } : {};
+    const sessionToolOptions = {
+      ...baseToolOptions,
+      excludeTools: [...(baseToolOptions.excludeTools ?? []), ...SHELL_TOOL_NAMES],
+    };
     const { session: inner } = await createAgentSessionFromServices({
       services,
       sessionManager,
       ...(startupModel ? { model: startupModel } : {}),
       ...(initial?.thinkingLevel ? { thinkingLevel: initial.thinkingLevel } : {}),
       ...(scope.scopedModels.length > 0 ? { scopedModels: [...scope.scopedModels] } : {}),
-      ...(subagentResources
-        ? subagentToolOptions(subagentResources)
-        : toolsOption !== undefined ? { tools: toolsOption } : {}),
+      ...sessionToolOptions,
     });
 
     // A pinned selection replaces only the coding tools of the SDK's initial loadout, which

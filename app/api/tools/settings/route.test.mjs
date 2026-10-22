@@ -49,22 +49,22 @@ test("reports and switches Code mode on every platform", async () => {
   await writeFile(settingsPath, JSON.stringify({ defaultModel: "m" }));
   const initial = await GET(operatorRequest("http://localhost/api/tools/settings"));
   assert.equal(initial.status, 200);
-  assert.deepEqual(await initial.json(), { isWindows, powerShellEnabled: false, codemode: "automatic" });
+  assert.deepEqual(await initial.json(), { codemode: "automatic" });
 
   const enabled = await put({ codemode: "always" });
   assert.equal(enabled.status, 200);
-  assert.deepEqual(await enabled.json(), { isWindows, powerShellEnabled: false, codemode: "always" });
+  assert.deepEqual(await enabled.json(), { codemode: "always" });
   assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), { defaultModel: "m", defaultTools: ["+codemode"] });
 
   const automatic = await put({ codemode: "automatic" });
-  assert.deepEqual(await automatic.json(), { isWindows, powerShellEnabled: false, codemode: "automatic" });
+  assert.deepEqual(await automatic.json(), { codemode: "automatic" });
   assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), { defaultModel: "m" });
 });
 
 test("rejects requests that do not name exactly one valid change", async () => {
   for (const [body, status] of [
     [{ codemode: "never" }, 400],
-    [{ codemode: "always", enabled: true }, 400],
+    [{ enabled: true }, 400],
     [{}, 400],
     [[], 400],
     ["{ not json", 400],
@@ -73,11 +73,6 @@ test("rejects requests that do not name exactly one valid change", async () => {
     assert.equal(response.status, status, JSON.stringify(body));
   }
   assert.equal((await put({ codemode: "always" }, { host: "localhost", "Content-Type": "text/plain" })).status, 415);
-});
-
-test("keeps the PowerShell switch Windows-only", { skip: isWindows }, async () => {
-  const response = await put({ enabled: true });
-  assert.equal(response.status, 404);
 });
 
 test("reports a settings file it cannot parse instead of overwriting it", async () => {

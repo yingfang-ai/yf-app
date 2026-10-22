@@ -195,7 +195,6 @@ interface Props {
     projectKey?: string | null,
   ) => void;
   onOpenFile?: (filePath: string, fileName: string, options?: { sourceSessionId?: string | null; modeHint?: "diff" }) => void;
-  onOpenTerminal?: (cwd: string) => void;
   /** Full path of the file currently shown in the editor/preview pane (the
    *  real active file-tab identity from AppShell), for the explorer's
    *  "currently open" row highlight. Not a local echo — this is the same
@@ -730,7 +729,7 @@ function PiWebTitle() {
   );
 }
 
-export function SessionSidebar({ selectedSessionId, highlightSessionId, followHighlightIntoView, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, onOpenTerminal, activeFilePath, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, onBackgroundTaskDone, onRunningSessionIdsChange, onSessionsChange, onExternalSessionChange }: Props) {
+export function SessionSidebar({ selectedSessionId, highlightSessionId, followHighlightIntoView, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, activeFilePath, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, onBackgroundTaskDone, onRunningSessionIdsChange, onSessionsChange, onExternalSessionChange }: Props) {
   const { t } = useI18n();
   // Split-view follow: the row highlight reads the focus-derived id when the
   // shell passes one and falls back to the classic selection otherwise.
@@ -2873,17 +2872,6 @@ export function SessionSidebar({ selectedSessionId, highlightSessionId, followHi
                 <path d="M3 8a2 2 0 0 1 2-2h3.4l1.9 1.9H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
               </svg>
             </ToolbarIconButton>
-            {onOpenTerminal && (
-              <ToolbarIconButton
-                onClick={() => onOpenTerminal(selectedCwd ?? selectedCwdProp!)}
-                title={t("terminal.open")}
-                color="var(--text-dim)"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
-                </svg>
-              </ToolbarIconButton>
-            )}
             {explorerOpen && changesCount > 0 && (
               <ToolbarIconButton
                 onClick={() => setChangesCollapsed((v) => !v)}

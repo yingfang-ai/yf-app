@@ -1934,9 +1934,8 @@ function BashExecutionView({ message, sessionId }: { message: BashExecutionMessa
 
   const isPending = !message.output && message.exitCode === undefined && !message.cancelled;
   const isError = message.cancelled || (message.exitCode !== undefined && message.exitCode !== 0);
-  const fullOutputUrl = sessionId && message.fullOutputPath
-    ? `/api/agent/${encodeURIComponent(sessionId)}/bash-output?path=${encodeURIComponent(message.fullOutputPath)}`
-    : null;
+  // 主机 shell 面已移除（yingfang#28 R4）：bash-output 路由不存在，历史里的完整输出不可再取。
+  const fullOutputUrl: string | null = null;
   const showFullButton = message.truncated && fullOutputUrl && fullOutput === null;
   const displayOutput = fullOutput ?? message.output;
 

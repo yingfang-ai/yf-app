@@ -715,6 +715,7 @@ export function withSubagentExtensionTools(
 
 /** Every tool the SDK builds in (its `allToolNames`, which the package does not export). */
 export const SDK_BUILTIN_TOOLS: readonly string[] = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"];
+const SHELL_TOOLS_REMOVED: readonly string[] = ["bash", "powershell"];
 /** MCP tools by the SDK's `isMcpToolName()`: `mcp__*` and its three resource tools. */
 const MCP_TOOL_PATTERNS = ["mcp__*", "list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource"];
 
@@ -727,7 +728,8 @@ const MCP_TOOL_PATTERNS = ["mcp__*", "list_mcp_resources", "list_mcp_resource_te
  * selectors keep the allowlist, since the SDK admits tools by name, not by source.
  */
 export function subagentToolOptions(resources: { tools: readonly string[]; allExtensionTools?: boolean; mcp?: boolean }) {
-  const excludeTools: string[] = [...SUBAGENT_CONTROL_TOOL_NAMES];
+  // 主机 shell 对所有人移除（yingfang#28 R4）：子代理也不例外。
+  const excludeTools: string[] = [...SUBAGENT_CONTROL_TOOL_NAMES, ...SHELL_TOOLS_REMOVED];
   if (!resources.allExtensionTools && resources.mcp) {
     // MCP tools register as their servers connect, long after the allowlist is fixed, so it
     // admits them by name; `createSubagentMcpPolicyExtension()` keeps out those of extensions the
@@ -748,14 +750,14 @@ export function subagentToolOptions(resources: { tools: readonly string[]; allEx
         : [...excludeTools, ...MCP_TOOL_PATTERNS.filter((name) => !resources.tools.includes(name))],
     };
   }
-  const builtins = resources.tools.filter((name) => SDK_BUILTIN_TOOLS.includes(name));
+  const builtins = resources.tools.filter((name) => SDK_BUILTIN_TOOLS.includes(name) && !SHELL_TOOLS_REMOVED.includes(name));
   // Code mode registers inactive (`defaultActive: false`), so a child that has it names it too.
   const added = resources.tools.includes("codemode") ? [...builtins, "codemode"] : builtins;
   return {
     noTools: "builtin" as const,
     // Only `+name` entries: they add to the default selection instead of forming an allowlist.
     ...(added.length > 0 ? { tools: added.map((name) => `+${name}`) } : {}),
-    excludeTools: [...excludeTools, ...SDK_BUILTIN_TOOLS.filter((name) => !builtins.includes(name))],
+    excludeTools: [...excludeTools, ...SDK_BUILTIN_TOOLS.filter((name) => !builtins.includes(name) && !SHELL_TOOLS_REMOVED.includes(name))],
   };
 }
 

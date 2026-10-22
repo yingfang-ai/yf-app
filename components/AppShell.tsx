@@ -20,8 +20,6 @@ import { BranchNavigator, hasSessionBranches } from "./BranchNavigator";
 import { SystemPromptPanel } from "./SystemPromptPanel";
 import { ToolDefinitionsPanel } from "./ToolDefinitionsPanel";
 import { AgentSessionPanel } from "./AgentSessionPanel";
-import { TerminalPanel } from "./TerminalPanel";
-import { newTerminalTab, restoreTerminalTabs, TERMINAL_TABS_KEY, type TerminalTab } from "./terminal-tab-state";
 import { useTheme } from "@/hooks/useTheme";
 import { useFontPreferences } from "@/hooks/useFontPreferences";
 import { useI18n } from "@/hooks/useI18n";
@@ -810,15 +808,7 @@ export function AppShell() {
   // tab just parked goes to its workspace, not to a same-path tab restored.
   const [fileWorkspaceGeneration, setFileWorkspaceGeneration] = useState(0);
   const fileWorkspaceGenerationRef = useRef(0);
-  const [terminalTabs, setTerminalTabs] = useState<TerminalTab[]>([]);
-  const [terminalsRestored, setTerminalsRestored] = useState(false);
-  const rawPanelTabs: Tab[] = [...fileTabs, ...terminalTabs.map((tab) => ({
-    id: tab.id,
-    label: getFileName(tab.cwd) || tab.cwd,
-    filePath: tab.cwd,
-    kind: "terminal" as const,
-    closing: Boolean(tab.closing),
-  }))];
+  const rawPanelTabs: Tab[] = fileTabs;
   // Right-panel tab order (pi#70): fileTabs/terminalTabs are separate state
   // arrays, concatenated file-first above, so neither array alone can
   // represent an interleaved drag order. panelTabOrder tracks the DISPLAYED
@@ -833,29 +823,6 @@ export function AppShell() {
   const handleReorderPanelTab = useCallback((draggedId: string, targetId: string, after: boolean) => {
     setPanelTabOrder((prev) => reorderById(prev, (tabId) => tabId, draggedId, targetId, after));
   }, []);
-
-  useEffect(() => {
-    try {
-      const saved = restoreTerminalTabs(window.sessionStorage.getItem(TERMINAL_TABS_KEY));
-      setTerminalTabs(saved.tabs);
-      if (saved.activeId) {
-        setActiveFileTabId(saved.activeId);
-        setRightPanelOpen(saved.open);
-      }
-    } catch { /* storage is optional */ }
-    setTerminalsRestored(true);
-  }, []);
-
-  useEffect(() => {
-    if (!terminalsRestored) return;
-    try {
-      window.sessionStorage.setItem(TERMINAL_TABS_KEY, JSON.stringify({
-        tabs: terminalTabs.map(({ id, cwd }) => ({ id, cwd })),
-        activeId: activeFileTabId,
-        open: rightPanelOpen,
-      }));
-    } catch { /* storage is optional */ }
-  }, [terminalTabs, activeFileTabId, rightPanelOpen, terminalsRestored]);
 
   const handleFileViewerStateChange = useCallback((
     generation: number,
@@ -881,11 +848,8 @@ export function AppShell() {
     fileWorkspaceGenerationRef.current += 1;
     setFileWorkspaceGeneration(fileWorkspaceGenerationRef.current);
     setFileTabs(next.tabs);
-    // Terminal tabs span workspaces and keep control of the panel while active.
-    if (!activeFileTabId || activeFileId) {
-      setActiveFileTabId(next.activeTabId);
-      setRightPanelOpen(next.open);
-    }
+    setActiveFileTabId(next.activeTabId);
+    setRightPanelOpen(next.open);
   }, [activeFileTabId, fileTabs, rightPanelOpen]);
 
   // Same @mention format as the chat input's @ autocomplete, so the agent's
@@ -1574,39 +1538,18 @@ export function AppShell() {
     handleOpenFile(filePath, getFileName(filePath), { sourceSessionId: selectedSession?.id ?? null, page });
   }, [handleOpenFile, selectedSession?.id]);
 
-  const handleOpenTerminal = useCallback((cwd: string) => {
-    const existing = terminalTabs.find((tab) => tab.cwd === cwd);
-    const tab = existing ?? newTerminalTab(cwd);
-    if (!existing) setTerminalTabs((tabs) => [...tabs, tab]);
-    setActiveFileTabId(tab.id);
-    setRightPanelOpen(true);
-    if (isMobile) setSidebarOpen(false);
-  }, [terminalTabs, isMobile]);
-
-  const handleTerminalClosed = (tab: TerminalTab) => {
-    const replacement = tab.closing === "restart" ? newTerminalTab(tab.cwd) : null;
-    const remaining = terminalTabs.filter((item) => item.id !== tab.id);
-    setTerminalTabs((tabs) => tabs.flatMap((item) => item.id !== tab.id ? [item] : replacement ? [replacement] : []));
-    setActiveFileTabId((current) => current !== tab.id ? current : replacement?.id ?? remaining.at(-1)?.id ?? fileTabs.at(-1)?.id ?? null);
-    if (!replacement && !remaining.length && !fileTabs.length) setRightPanelOpen(false);
-  };
-
   const handleCloseFileTab = useCallback((tabId: string) => {
-    if (terminalTabs.some((tab) => tab.id === tabId)) {
-      setTerminalTabs((tabs) => tabs.map((tab) => tab.id === tabId && !tab.closing ? { ...tab, closing: "close" } : tab));
-      return;
-    }
     setFileTabs((prev) => {
       const next = prev.filter((t) => t.id !== tabId);
-      if (next.length === 0 && terminalTabs.length === 0) setRightPanelOpen(false);
+      if (next.length === 0) setRightPanelOpen(false);
       return next;
     });
     setActiveFileTabId((cur) => {
       if (cur !== tabId) return cur;
       const remaining = fileTabs.filter((t) => t.id !== tabId);
-      return remaining.at(-1)?.id ?? terminalTabs.at(-1)?.id ?? null;
+      return remaining.at(-1)?.id ?? null;
     });
-  }, [fileTabs, terminalTabs]);
+  }, [fileTabs]);
 
   const handleViewFullHistory = useCallback(() => {
     if (!selectedSession) return;
@@ -1824,7 +1767,6 @@ export function AppShell() {
         selectedCwd={selectedSession?.cwd ?? newSessionCwd ?? null}
         onCwdChange={handleCwdChange}
         onOpenFile={handleOpenFile}
-        onOpenTerminal={handleOpenTerminal}
         activeFilePath={activeFileTab?.filePath ?? null}
         explorerRefreshKey={explorerRefreshKey}
         onExplorerRefresh={handleExplorerRefresh}
@@ -3592,22 +3534,11 @@ export function AppShell() {
                 { sourceSessionId: activeFileTab.sourceSessionId, page },
               )}
             />
-          ) : !terminalTabs.some((tab) => tab.id === activeFileTabId) ? (
+          ) : (
             <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: 12 }}>
                {translate("files.noneOpen")}
             </div>
-          ) : null}
-          {terminalTabs.map((tab) => (
-            <div key={tab.id} hidden={tab.id !== activeFileTabId} style={{ width: "100%", height: "100%" }}>
-              <TerminalPanel
-                tab={tab}
-                active={rightPanelOpen && tab.id === activeFileTabId}
-                onRestart={() => setTerminalTabs((tabs) => tabs.map((item) => item.id === tab.id ? { ...item, closing: "restart" } : item))}
-                onClosed={() => handleTerminalClosed(tab)}
-                onCloseError={() => setTerminalTabs((tabs) => tabs.map((item) => item.id === tab.id ? { ...item, closing: undefined } : item))}
-              />
-            </div>
-          ))}
+          )}
         </div>
       </div>
     </div>

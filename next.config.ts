@@ -52,7 +52,6 @@ const nextConfig: NextConfig = {
   // lazy diagram chunks are full of class `static {}` blocks (#753).
   transpilePackages: ["mermaid", "@mermaid-js/parser"],
   serverExternalPackages: [
-    "node-pty",
     "undici",
     "web-push",
     "@earendil-works/pi-coding-agent",

@@ -124,8 +124,8 @@ test("the file-search button routes its OPEN path through the container handle",
   assert.doesNotMatch(source, /setFileSearchOpen\(\(open\) => !open\)/);
 });
 
-test("selectedCwd keeps driving highlighting and the terminal; the header New button is gone (pi#21)", () => {
-  assert.match(source, /onClick=\{\(\) => onOpenTerminal\(selectedCwd \?\? selectedCwdProp!\)\}/);
+test("selectedCwd keeps driving highlighting (the terminal button is gone, yingfang#28 R4); the header New button is gone (pi#21)", () => {
+  assert.doesNotMatch(source, /onOpenTerminal/);
   // pi#21: the sidebar header New button and its handler are removed; the
   // per-project [+] keeps wiring cwd into the new-session flow.
   assert.doesNotMatch(source, /const handleNewSession = useCallback/);
