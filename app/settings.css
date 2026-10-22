@@ -1904,3 +1904,60 @@
 .settings-session-filter-rules:focus-visible {
   border-color: var(--accent);
 }
+
+/* LLM 服务（单一配置通道，plan step 6）：仅运营者设置面。key 只写不回显。 */
+.settings-llm-config .settings-llm-form {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+}
+
+.settings-llm-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.settings-llm-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  background: var(--bg-panel);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.settings-llm-input:focus-visible {
+  border-color: var(--accent);
+}
+
+.settings-llm-save {
+  justify-self: start;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.settings-llm-save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-llm-status {
+  margin: 0;
+  font-size: 12px;
+}
+
+.settings-llm-status.ok {
+  color: var(--text-muted);
+}
+
+.settings-llm-status.error {
+  color: #d9534f;
+}

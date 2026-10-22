@@ -1,5 +1,6 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, SessionManager, SettingsManager, Theme, type ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, ModelRuntime, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
+import { LLM_CHANNEL_PROVIDER_ID, llmChannelModelRuntime, readLlmConfig } from "./yf/llm-config";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import { randomUUID } from "crypto";
 import { existsSync, realpathSync, writeFileSync } from "fs";
@@ -2610,10 +2611,26 @@ export async function startRpcSession(
             : {}),
         }
       : undefined;
+    // 单一 LLM 通道（plan step 6，spec R3）：普通会话（非 subagent）的模型解析从通道取
+    // （base_url/key/model_id 只在服务端进程内，key 不进浏览器字节）。未配置的**新**会话
+    // 明确报错、不静默兑底；恢复的会话（sessionFile）无通道也可打开（模型解析不到时由
+    // SDK 如实报错）。subagent 会话由其 profile 自解析，不经此通道。
+    let channelRuntime: ModelRuntime | undefined;
+    let channelModel: { provider: string; modelId: string } | undefined;
+    if (!subagentResources) {
+      const channel = readLlmConfig();
+      if (channel) {
+        channelRuntime = await llmChannelModelRuntime(channel);
+        channelModel = { provider: LLM_CHANNEL_PROVIDER_ID, modelId: channel.model_id };
+      } else if (!sessionFile) {
+        throw new Error("LLM 配置通道未配置：请让运营者在设置里配置 LLM 服务（base_url / key / model_id）后重试");
+      }
+    }
     const services = await createAgentSessionServices({
       cwd: sessionCwd,
       agentDir,
       settingsManager,
+      ...(channelRuntime ? { modelRuntime: channelRuntime } : {}),
       resourceLoaderOptions: subagentResources
         ? {
             ...subagentExtensionLoaderOptions(subagentResources),
@@ -2673,18 +2690,20 @@ export async function startRpcSession(
     );
     // A provider an extension registers only at session_start (lib/deferred-provider-models.ts)
     // has no model in this runtime yet: build on the default, switch once extensions are bound.
-    const deferredInitialModel = initialModel && !services.modelRuntime.getModel(initialModel.provider, initialModel.modelId)
-      ? findDeferredModel(services.modelRuntime, initialModel.provider, initialModel.modelId)
+    // The requested model is the caller's explicit choice, or the LLM channel's model (step 6).
+    const requestedModel = initialModel ?? channelModel;
+    const deferredInitialModel = requestedModel && !services.modelRuntime.getModel(requestedModel.provider, requestedModel.modelId)
+      ? findDeferredModel(services.modelRuntime, requestedModel.provider, requestedModel.modelId)
       : undefined;
     // Chat only loads no extensions, so that switch never comes: refuse the model the browser chose.
     if (chatOnly && deferredInitialModel && !allowInitialModelFallback) {
       throw chatOnlyExtensionModelError(deferredInitialModel.provider, deferredInitialModel.id);
     }
-    const effectiveInitialModel = initialModel && !deferredInitialModel && (
+    const effectiveInitialModel = requestedModel && !deferredInitialModel && (
       !allowInitialModelFallback
-      || scope.visible.some((model) => model.provider === initialModel.provider && model.id === initialModel.modelId)
+      || scope.visible.some((model) => model.provider === requestedModel.provider && model.id === requestedModel.modelId)
     )
-      ? initialModel
+      ? requestedModel
       : undefined;
     const defaultProvider = services.settingsManager.getDefaultProvider();
     const defaultModelId = services.settingsManager.getDefaultModel();
