@@ -15,6 +15,10 @@ import { yfSessionTokenFromCookie } from "@/lib/yf/session-index";
 // pre-auth 端点（契约 §2.1–2.2）：注册与登录本身不需要会话。
 const PRE_AUTH_API = /^\/api\/yf\/(register|login)$/;
 
+// 已删除的面（yingfang#28 R3/R4）：路由已不存在，匿名与登录请求一律同样回 404
+// （不让登录门把「已删除」伪装成「需要登录」）。放行到路由层由 Next 回 404。
+const DELETED_API = /^\/api\/(terminal|worktrees|models|models-config|auth|web-auth)(\/|$)|^\/api\/agent\/[^/]+\/bash-output(\/|$)/;
+
 export function proxy(request: NextRequest) {
   const isApiRequest = request.nextUrl.pathname === "/api"
     || request.nextUrl.pathname.startsWith("/api/");
@@ -27,6 +31,10 @@ export function proxy(request: NextRequest) {
       return new NextResponse("Untrusted request", { status: 403 });
     }
     return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
+  }
+
+  if (isApiRequest && DELETED_API.test(request.nextUrl.pathname)) {
+    return NextResponse.next();
   }
 
   const token = yfSessionTokenFromCookie(request.headers.get("cookie"));
