@@ -295,7 +295,6 @@ test("an empty persisted session displays the model it will use on first send", 
     source,
     /currentModel \?\? \(data\?\.context\.messages\.length === 0 \? newSessionDefaultModel : null\)/,
   );
-  assert.match(source, /setNewSessionDefaultModel\(displayDefaultModel/);
 });
 
 test("the selector prefers the live wrapper model over persisted response metadata", () => {

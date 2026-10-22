@@ -295,19 +295,6 @@ export interface AttachedImage {
 
 type SelectedModel = { provider: string; modelId: string };
 type ModelEntry = { id: string; name: string; provider: string };
-type ModelsResponse = {
-  models: Record<string, string>;
-  modelList?: ModelEntry[];
-  defaultModel?: SelectedModel | null;
-  defaultThinkingLevel?: string | null;
-  savedDefaultThinkingLevel?: string | null;
-  thinkingLevels?: Record<string, string[]>;
-  thinkingLevelMaps?: Record<string, Record<string, string | null>>;
-  thinkingLevelPins?: Record<string, string>;
-  modelError?: string;
-  modelScopeWarnings?: string[];
-};
-
 type SlashCommandsResponse = {
   commands?: SlashCommandInfo[];
 };
@@ -335,12 +322,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [agentRunning, setAgentRunning] = useState(false);
   const [bashRunning, setBashRunning] = useState(false);
   const [pendingBash, setPendingBash] = useState<{ command: string; excludeFromContext: boolean } | null>(null);
-  const [modelNames, setModelNames] = useState<Record<string, string>>({});
-  const [modelList, setModelList] = useState<ModelEntry[]>([]);
-  const [modelError, setModelError] = useState<string | null>(null);
-  const [modelScopeWarnings, setModelScopeWarnings] = useState<string[]>([]);
-  const [modelThinkingLevels, setModelThinkingLevels] = useState<Record<string, string[]>>({});
-  const [modelThinkingLevelMaps, setModelThinkingLevelMaps] = useState<Record<string, Record<string, string | null>>>({});
+  const [modelNames] = useState<Record<string, string>>({});
+  const [modelList] = useState<ModelEntry[]>([]);
+  const [modelError] = useState<string | null>(null);
+  const [modelScopeWarnings] = useState<string[]>([]);
+  const [modelThinkingLevels] = useState<Record<string, string[]>>({});
+  const [modelThinkingLevelMaps] = useState<Record<string, Record<string, string | null>>>({});
   const [newSessionModel, setNewSessionModel] = useState<SelectedModel | null>(null);
   const [newSessionDefaultModel, setNewSessionDefaultModel] = useState<SelectedModel | null>(null);
   const [toolPreset, setToolPreset] = useState<ToolPreset>(CONFIGURED_TOOL_PRESET);
@@ -1974,66 +1961,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // The banner otherwise stays until the next compaction, e.g. "Nothing to compact".
   const dismissCompactError = useCallback(() => setCompactError(null), []);
 
+  // 单一 LLM 通道（yingfang#28 R3）：/api/models 模型目录面已删除，会话的模型由服务端
+  // 从通道解析；浏览器不再加载模型目录（保留签名，调用方无需改）。
   const loadModels = useCallback(async (signal?: AbortSignal) => {
-    const modelCwd = newSessionCwd ?? session?.cwd ?? "";
-    // An empty-state composer (no session, no new-session cwd) has no project
-    // context — fetching bare "/api/models" would resolve the cwd to the
-    // server's process.cwd() and 403. Skip instead; a mount with a real cwd
-    // (or modelsRefreshKey change) reloads.
-    if (!modelCwd) return;
-    const modelsUrl = modelCwd ? `/api/models?cwd=${encodeURIComponent(modelCwd)}` : "/api/models";
-    let d: ModelsResponse;
-    try {
-      const res = await fetch(modelsUrl, signal ? { signal } : undefined);
-      if (!res.ok) {
-        let detail = "";
-        try {
-          const body: unknown = await res.json();
-          if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
-            detail = body.error;
-          }
-        } catch (e) {
-          if (e instanceof DOMException && e.name === "AbortError") throw e;
-          // Non-JSON error responses fall back to the HTTP status.
-        }
-        throw new Error(detail || `Failed to load models (HTTP ${res.status})`);
-      }
-      d = await res.json() as ModelsResponse;
-      signal?.throwIfAborted();
-    } catch (e) {
-      if (!signal?.aborted && !(e instanceof DOMException && e.name === "AbortError")) {
-        setModelError(e instanceof Error ? e.message : String(e));
-      }
-      throw e;
-    }
-    setModelNames(d.models);
-    setModelError(d.modelError ?? null);
-    setModelScopeWarnings(d.modelScopeWarnings ?? []);
-    setModelThinkingLevels(d.thinkingLevels ?? {});
-    setModelThinkingLevelMaps(d.thinkingLevelMaps ?? {});
-    const nextModelList = d.modelList ?? [];
-    setModelList(nextModelList);
-    const displayDefaultModel = d.defaultModel
-      ? nextModelList.find((m) => m.id === d.defaultModel?.modelId && m.provider === d.defaultModel?.provider)
-      : undefined;
-    setNewSessionDefaultModel(displayDefaultModel
-      ? { provider: displayDefaultModel.provider, modelId: displayDefaultModel.id }
-      : null);
-    thinkingLevelPinsRef.current = d.thinkingLevelPins ?? {};
-    defaultThinkingLevelRef.current = asConcreteThinkingLevel(d.defaultThinkingLevel);
-    setSavedDefaultThinkingLevel(asConcreteThinkingLevel(d.savedDefaultThinkingLevel));
-    if (isNew && !sessionIdRef.current) {
-      // The first listed model is not necessarily the runtime's automatic choice.
-      // An `enabledModels` pattern may pin a thinking level (`anthropic/*:high`).
-      // Like pi, apply it to the model a new session starts with.
-      const pinned = displayDefaultModel && d.thinkingLevelPins?.[`${displayDefaultModel.provider}/${displayDefaultModel.id}`];
-      if (thinkingLevelOverrideRef.current === null) {
-        setNewSessionDefaultThinkingLevel(
-          asConcreteThinkingLevel(pinned) ?? defaultThinkingLevelRef.current,
-        );
-      }
-    }
-  }, [isNew, newSessionCwd, session?.cwd]);
+    void signal;
+  }, []);
 
   // Picking a model or reasoning level is session-scoped, as in the TUI. The
   // selectors' star is the explicit Ctrl+S equivalent: it saves the global

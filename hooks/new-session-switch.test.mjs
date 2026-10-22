@@ -36,7 +36,6 @@ async function sendAndSwitch(stage) {
   };
   globalThis.fetch = async (url, init = {}) => {
     const command = init.body ? JSON.parse(init.body) : null;
-    if (url.startsWith("/api/models")) return json({ models: {}, modelList: [] });
     if (url === "/api/agent/new") return creation.promise;
     if (url === "/api/agent/s1" && command) {
       commands.push(command.type);

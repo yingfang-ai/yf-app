@@ -1038,7 +1038,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
       availableThinkingLevels={availableThinkingLevels}
       thinkingLevelMap={currentThinkingLevelMap}
       savedDefaultThinkingLevel={savedDefaultThinkingLevel}
-      onSetDefaultThinkingLevel={session || isNew ? handleSetDefaultThinkingLevel : undefined}
+      onSetDefaultThinkingLevel={undefined}
       retryInfo={retryInfo}
       queuedMessages={queuedMessages}
       inputHistory={inputHistory}

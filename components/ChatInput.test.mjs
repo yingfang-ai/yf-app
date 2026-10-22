@@ -11,8 +11,7 @@ const jiti = createJiti(import.meta.url, {
 });
 const React = await jiti.import("react");
 const { renderToStaticMarkup } = await jiti.import("react-dom/server");
-const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, RUN_END_CLICK_GUARD_MS, canClearBuiltinCommandInput, canRestoreUserMessage, canRunBuiltinSlashCommandWhileStreaming, compressImageFile, cycleListIndex, filterModelOptions, getUpwardMenuMaxHeight, getUserMessageText, getUserMessageDraftImages, isExactSlashCommand, isRunEndStrayClick, modelSupportsImageInput, replaceLinksWithMarkdown, replaceTextareaRange, shouldCompressImageFile } = await jiti.import("./ChatInput.tsx");
-const { ModelSelector } = await jiti.import("./ModelSelector.tsx");
+const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, RUN_END_CLICK_GUARD_MS, canClearBuiltinCommandInput, canRestoreUserMessage, canRunBuiltinSlashCommandWhileStreaming, compressImageFile, cycleListIndex, getUpwardMenuMaxHeight, getUserMessageText, getUserMessageDraftImages, isExactSlashCommand, isRunEndStrayClick, modelSupportsImageInput, replaceLinksWithMarkdown, replaceTextareaRange, shouldCompressImageFile } = await jiti.import("./ChatInput.tsx");
 const { clearDraft, getDraft, mergeRestoredSubmissionDraft, mergeRestoredSubmissionText, rekeyDraft, setDraft } = await jiti.import("@/lib/draft-store.ts");
 const { I18nProvider } = await jiti.import("@/hooks/useI18n");
 
@@ -338,27 +337,6 @@ test("renders enabledModels scope warnings", () => {
   );
 });
 
-test("keeps the model selector visible when a model error leaves no options", () => {
-  const html = renderToStaticMarkup(
-    React.createElement(
-      I18nProvider,
-      null,
-      React.createElement(ChatInput, {
-        onSend() {},
-        onAbort() {},
-        onModelChange() {},
-        isStreaming: false,
-        modelError: "Invalid models.json schema",
-        modelList: [],
-        modelNames: {},
-      }),
-    ),
-  );
-
-  assert.match(html, />No models</);
-  assert.match(html, /title="No available models"/);
-});
-
 test("renders the read-only tool preset as the active selection", () => {
   const html = renderToStaticMarkup(
     React.createElement(
@@ -469,69 +447,6 @@ test("picked files go to the chat's attach handler, or attach as images without 
     { attached: [[photo, report]], images: [], value: "" },
   );
   assert.deepEqual(pick(() => ({ onAttachFiles: undefined })), { attached: [], images: [[photo, report]], value: "" });
-});
-
-test("shows and locks the optimistic model while a switch is pending", () => {
-  const html = renderToStaticMarkup(
-    React.createElement(
-      I18nProvider,
-      null,
-      React.createElement(ChatInput, {
-        onSend() {},
-        onAbort() {},
-        onModelChange() {},
-        isStreaming: false,
-        model: { provider: "deepseek", modelId: "deepseek-v4-flash" },
-        modelList: [{ provider: "deepseek", id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" }],
-        modelSwitching: true,
-      }),
-    ),
-  );
-
-  assert.match(html, /title="Switching model"/);
-  assert.match(html, /aria-busy="true"/);
-  assert.match(html, /disabled=""/);
-  assert.match(html, />DeepSeek V4 Flash</);
-  assert.match(html, /animation:spin 0\.8s linear infinite/);
-});
-
-test("filters model options by name and id", () => {
-  const options = [
-    { provider: "ollama", modelId: "qwen3:latest", name: "Qwen 3" },
-    { provider: "anthropic", modelId: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
-    { provider: "openai", modelId: "gpt-5.4", name: "GPT-5.4" },
-  ];
-
-  assert.deepEqual(filterModelOptions(options, "QWEN"), [options[0]]);
-  assert.deepEqual(filterModelOptions(options, "claude-sonnet"), [options[1]]);
-  assert.equal(filterModelOptions(options, "OpenAI").length, 0);
-  assert.equal(filterModelOptions(options, "anthropic/claude").length, 0);
-  assert.equal(filterModelOptions(options, "missing").length, 0);
-  assert.equal(filterModelOptions(options, "  "), options);
-});
-
-test("renders the shared field model selector as a disabled gray control", () => {
-  const html = renderToStaticMarkup(
-    React.createElement(
-      I18nProvider,
-      null,
-      React.createElement(ModelSelector, {
-        options: [{ provider: "openai", modelId: "gpt-5.6-sol", name: "GPT-5.6 Sol" }],
-        value: null,
-        onChange() {},
-        onClear() {},
-        emptyLabel: "Parent default",
-        ariaLabel: "Model override",
-        disabled: true,
-        variant: "field",
-      }),
-    ),
-  );
-
-  assert.match(html, /aria-label="Model override"/);
-  assert.match(html, /disabled=""/);
-  assert.match(html, /background:var\(--bg-panel\)/);
-  assert.match(html, />Parent default</);
 });
 
 test("caps an upward menu to the visible space above its anchor", () => {
@@ -1039,14 +954,11 @@ test("the kept-draft notice strings exist in every locale catalog", async () => 
   }
 });
 
-test("only the chat composer offers saving a default model or reasoning level", () => {
+test("the chat composer carries no model selector (single LLM channel)", () => {
   const chatInputSource = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
-  const agentsConfigSource = readFileSync(new URL("./AgentsConfig.tsx", import.meta.url), "utf8");
-  assert.match(chatInputSource, /<ModelSelector[\s\S]*?defaultValue=\{defaultModel\}[\s\S]*?onSetDefault=\{onSetDefaultModel\}/);
+  assert.doesNotMatch(chatInputSource, /ModelSelector/);
   // "auto" means "use the default", so it never gets a star of its own.
   assert.match(chatInputSource, /star=\{onSetDefaultThinkingLevel && lvl !== "auto"/);
-  // A subagent profile's model is not the default for new chats.
-  assert.doesNotMatch(agentsConfigSource, /onSetDefault/);
 });
 
 test("selector rows keep the default star and the floating save button in one gutter", async () => {

@@ -8,7 +8,6 @@ import vm from "node:vm";
 const source = await readFile(new URL("./AgentsConfig.tsx", import.meta.url), "utf8");
 const cssSource = await readFile(new URL("../app/settings.css", import.meta.url), "utf8");
 const chatInputSource = await readFile(new URL("./ChatInput.tsx", import.meta.url), "utf8");
-const modelSelectorSource = await readFile(new URL("./ModelSelector.tsx", import.meta.url), "utf8");
 
 test("draft backfills MCP as off and keeps an explicit choice", () => {
   const declaration = source.slice(source.indexOf("function editableProfile("), source.indexOf("function profileKey("));
@@ -141,17 +140,10 @@ test("persists existing profile toggles immediately without submitting unsaved f
   assert.doesNotMatch(source, /method: "PATCH"[\s\S]*?profile: draft/);
 });
 
-test("reuses the ChatInput model selector with scoped models", () => {
-  assert.match(source, /fetch\(`\/api\/models\?cwd=\$\{encodeURIComponent\(cwd\)\}`/);
-  assert.match(source, /import \{ ModelSelector \} from "\.\/ModelSelector"/);
-  assert.match(chatInputSource, /import \{ ModelSelector, type ModelSelectorOption \} from "\.\/ModelSelector"/);
-  assert.match(source, /<ModelSelector[\s\S]*?options=\{modelSelectorOptions\}[\s\S]*?variant="field"/);
-  assert.match(chatInputSource, /<ModelSelector[\s\S]*?options=\{modelOptions\}/);
-  assert.match(modelSelectorSource, /filterModelOptions\(options, filter\)/);
-  assert.match(modelSelectorSource, /modelsByProvider\.map/);
-  assert.match(modelSelectorSource, /event\.key !== "Escape" \|\| !open[\s\S]*?event\.preventDefault\(\)[\s\S]*?event\.stopPropagation\(\)/);
-  assert.match(source, /agents\.modelUnavailable/);
-  assert.doesNotMatch(source, /placeholder="provider\/modelId"/);
+test("the subagent model field is a plain provider/model input (no model catalog)", () => {
+  assert.doesNotMatch(source, /\/api\/models/);
+  assert.doesNotMatch(source, /ModelSelector/);
+  assert.match(source, /placeholder="provider\/model"/);
 });
 
 test("renders the stable agent id as text outside create mode", () => {
@@ -204,7 +196,6 @@ test("shows disabled controls with a gray background", () => {
   assert.doesNotMatch(source, /agents-system-prompt[^\n]*fontFamily/);
   assert.match(disabledStyle, /background: "var\(--bg-panel\)"/);
   assert.match(disabledStyle, /color: "var\(--text-dim\)"/);
-  assert.match(modelSelectorSource, /background: locked \? "var\(--bg-panel\)" : "var\(--bg\)"/);
 });
 
 test("keeps a larger resize corner when system instructions need a scrollbar", () => {

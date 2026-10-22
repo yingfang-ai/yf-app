@@ -9,7 +9,7 @@ const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url
 const enSource = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhSource = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
 const configSources = await Promise.all(
-  ["ModelsConfig", "SkillsConfig", "AgentsConfig", "PluginsConfig"].map(async (name) => [
+  ["SkillsConfig", "AgentsConfig", "PluginsConfig"].map(async (name) => [
     name,
     await readFile(new URL(`./${name}.tsx`, import.meta.url), "utf8"),
   ]),
@@ -168,7 +168,6 @@ test("keeps shared static presentation in the stylesheet", () => {
 
 test("embedded sections do not repeat Settings close actions", () => {
   const sources = Object.fromEntries(configSources);
-  assert.match(sources.ModelsConfig, /!embedded && <ConfigButton onClick=\{onClose\}>\{t\("i18n\.cancel"\)\}/);
   assert.match(sources.SkillsConfig, /!embedded && <ConfigButton onClick=\{onClose\}>\{t\("i18n\.close"\)\}/);
   assert.match(sources.PluginsConfig, /!embedded && <ConfigButton onClick=\{onClose\}>\{t\("i18n\.close"\)\}/);
 });
@@ -179,7 +178,6 @@ test("subpanel footers share sizing while maintenance actions stay secondary", (
   assert.match(cssSource, /\.config-footer-actions \.config-button-default \{[\s\S]*?min-width: 96px/);
   assert.match(cssSource, /\.config-button \{[\s\S]*?font-family: inherit/);
   assert.match(cssSource, /\.config-button-default \{[\s\S]*?height: 32px/);
-  assert.match(sources.ModelsConfig, /<ConfigButton\s+variant="primary"[\s\S]*?onClick=\{handleSave\}/);
   assert.match(sources.AgentsConfig, /<ConfigButton\s+variant="primary"[\s\S]*?onClick=\{\(\) => void save\(\)\}/);
   assert.match(sources.SkillsConfig, /<ConfigButton variant="secondary" onClick=\{\(\) => void checkForUpdates\(\)\}/);
   assert.match(sources.PluginsConfig, /<ConfigButton variant="secondary" onClick=\{\(\) => void loadPlugins\(\)\}/);

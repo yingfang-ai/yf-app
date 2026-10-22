@@ -6,7 +6,6 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import type { SubagentProfilesResponse, SubagentSettingsResponse } from "@/lib/api-types";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { displayPathWithin, shortenPath } from "@/lib/display-path";
-import type { ModelsData } from "@/lib/models-cache";
 import { isSubagentProfileOverridden } from "@/lib/subagent-profile-precedence";
 import type { SubagentProfile, SubagentScope, SubagentWritableScope } from "@/lib/subagents";
 import {
@@ -34,7 +33,6 @@ import {
   ConfigStatusDot,
   ConfigSwitch,
 } from "./SettingsUi";
-import { ModelSelector } from "./ModelSelector";
 
 const TOOL_OPTIONS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 const THINKING_OPTIONS = ["", "off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
@@ -162,9 +160,6 @@ export function AgentsConfig({
   const isMobile = useIsMobile();
   const { t } = useI18n();
   const [profiles, setProfiles] = useState<SubagentProfile[]>([]);
-  const [modelOptions, setModelOptions] = useState<ModelsData["modelList"]>([]);
-  const [modelsLoading, setModelsLoading] = useState(true);
-  const [modelsError, setModelsError] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(() => getLastSettingsSelection("agents", cwd));
   const [draft, setDraft] = useState<EditableProfile>(EMPTY_PROFILE);
   const [mode, setMode] = useState<EditorMode>("view");
@@ -186,11 +181,6 @@ export function AgentsConfig({
     () => profiles.find((profile) => profileKey(profile) === selectedKey) ?? null,
     [profiles, selectedKey],
   );
-  const modelSelectorOptions = useMemo(() => modelOptions.map((model) => ({
-    provider: model.provider,
-    modelId: model.id,
-    name: model.name,
-  })), [modelOptions]);
 
   const loadProfiles = useCallback(async (preferredKey?: string) => {
     setLoading(true);
@@ -253,27 +243,6 @@ export function AgentsConfig({
   useEffect(() => {
     if (selectedKey) setLastSettingsSelection("agents", selectedKey, cwd);
   }, [cwd, selectedKey]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setModelsLoading(true);
-    setModelsError(null);
-    void (async () => {
-      try {
-        const response = await fetch(`/api/models?cwd=${encodeURIComponent(cwd)}`, { signal: controller.signal });
-        const data = await response.json() as Partial<ModelsData> & { error?: string };
-        if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
-        setModelOptions(data.modelList ?? []);
-        setModelsError(data.modelError ?? null);
-      } catch (cause) {
-        if (controller.signal.aborted) return;
-        setModelsError(cause instanceof Error ? cause.message : String(cause));
-      } finally {
-        if (!controller.signal.aborted) setModelsLoading(false);
-      }
-    })();
-    return () => controller.abort();
-  }, [cwd]);
 
   const selectProfile = (profile: SubagentProfile) => {
     setSelectedKey(profileKey(profile));
@@ -363,14 +332,6 @@ export function AgentsConfig({
       ? displayProfilePath(selected, cwd) ?? t("agents.builtinPath")
       : "";
   const fullPath = creating ? displayedPath : selected?.filePath ?? displayedPath;
-  const selectedModelAvailable = !draft.model || modelOptions.some((model) => `${model.provider}/${model.id}` === draft.model);
-  const selectedModel = (() => {
-    if (!draft.model) return null;
-    const separator = draft.model.indexOf("/");
-    return separator < 0
-      ? { provider: "", modelId: draft.model }
-      : { provider: draft.model.slice(0, separator), modelId: draft.model.slice(separator + 1) };
-  })();
   const controlStyle = disabled ? { ...inputStyle, ...disabledInputStyle } : inputStyle;
   const switchDisabled = creating
     ? disabled
@@ -659,21 +620,7 @@ export function AgentsConfig({
 
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.5fr) minmax(120px, 0.75fr) minmax(100px, 0.5fr)", gap: 12 }}>
                     <Field label={t("agents.model")}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <ModelSelector
-                          options={modelSelectorOptions}
-                          value={selectedModel}
-                          onChange={(provider, modelId) => update("model", `${provider}/${modelId}`)}
-                          onClear={() => update("model", undefined)}
-                          emptyLabel={modelsLoading ? t("agents.modelsLoading") : t("agents.inherit")}
-                          selectedLabel={draft.model && !selectedModelAvailable ? t("agents.modelUnavailable", { model: draft.model }) : undefined}
-                          disabled={disabled || modelsLoading || (modelOptions.length === 0 && !draft.model)}
-                          ariaLabel={t("agents.model")}
-                          variant="field"
-                          placement="auto"
-                        />
-                        {modelsError && <span style={{ color: "#ef4444", fontSize: 10 }}>{modelsError}</span>}
-                      </div>
+                      <input aria-label={t("agents.model")} placeholder="provider/model" value={draft.model ?? ""} disabled={disabled} onChange={(event) => update("model", event.target.value || undefined)} style={controlStyle} />
                     </Field>
                     <Field label={t("agents.thinking")}>
                       <select aria-label={t("agents.thinking")} value={draft.thinking ?? ""} disabled={disabled} onChange={(event) => update("thinking", (event.target.value || undefined) as EditableProfile["thinking"])} style={controlStyle}>
