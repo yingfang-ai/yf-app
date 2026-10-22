@@ -6,6 +6,7 @@ import {
   readPowerShellToolEnabled,
   writePowerShellToolEnabled,
 } from "@/lib/powershell-settings";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,9 @@ async function readToolSettings(): Promise<ToolSettingsResponse> {
   return { isWindows: process.platform === "win32", powerShellEnabled, codemode };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   try {
     return NextResponse.json(await readToolSettings());
   } catch (error) {
@@ -37,6 +40,9 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
+
   if (!isApiRequestAllowed(req)) {
     return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
   }

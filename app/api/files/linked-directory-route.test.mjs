@@ -34,10 +34,20 @@ const jiti = createJiti(import.meta.url, {
 });
 const { GET, POST } = await jiti.import("./[...path]/route.ts");
 const { GET: getFileIndex } = await jiti.import("../file-index/route.ts");
+// 运营者守卫（plan step 5）：file-index 仅运营者可用——测试以运营者会话直调。
+process.env.YF_OPERATOR_USER_IDS = "abad1dea000000000000000000000000";
+const { mkdtempSync: mkOperatorRoot } = await import("node:fs");
+const operatorDataRoot = mkOperatorRoot(path.join(os.tmpdir(), "yf-operator-guard-"));
+process.env.YF_DATA_DIR = operatorDataRoot;
 const { allowFileRoot } = await jiti.import("../../../lib/file-access.ts");
 const { encodeFilePathForApi } = await jiti.import("../../../lib/file-paths.ts");
 const { __setRegistrationScopesForTesting: setRegistrationScopes } = await jiti.import("../../../lib/root-registration-policy.ts");
 const { NextRequest } = await jiti.import("next/server");
+const { writeSessionIndex } = await jiti.import("../../../lib/yf/session-index.ts");
+writeSessionIndex(operatorDataRoot, "guard-tests", {
+  user_id: "abad1dea000000000000000000000000",
+  expires_at: "2030-01-01T00:00:00Z",
+});
 
 function request(method, filePath, type, body, contentType = "application/json") {
   const encoded = encodeFilePathForApi(filePath);
@@ -235,7 +245,7 @@ test("a cwd that climbs out through a link is refused by the other routes too", 
   const cwd = `${hub}${path.sep}linked${path.sep}..`;
   const response = await getFileIndex(new NextRequest(
     `http://localhost/api/file-index?cwd=${encodeURIComponent(cwd)}`,
-    { headers: { host: "localhost" } },
+    { headers: { host: "localhost", Cookie: "yf_session=guard-tests" } },
   ));
   assert.equal(response.status, 403);
 });

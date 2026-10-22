@@ -6,6 +6,7 @@ import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-acces
 import { invalidateModelsCache } from "@/lib/models-cache";
 import { getProjectTrustStatus, trustProject } from "@/lib/project-trust";
 import { destroyRpcSessionsForCwd, hasBusyRpcSessionForCwd } from "@/lib/rpc-manager";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,9 @@ async function validateCwdForTrust(value: unknown): Promise<
 }
 
 export async function GET(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
+
   // The GET is a status query, not an action: AppShell asks it for the cwd a
   // new session will compose in — including one the operator has not yet
   // selected through cwd/validate (the entry flow's default directory).
@@ -61,6 +65,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
+
   try {
     const body = await req.json() as { cwd?: unknown };
     const result = await validateCwdForTrust(body.cwd);

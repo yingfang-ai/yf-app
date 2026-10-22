@@ -4,10 +4,14 @@ import type { SkillInstallScope } from "@/lib/api-types";
 import { buildSkillUpdateArgs } from "@/lib/skill-updates";
 import { loadSkillsWithInstallInfo } from "@/lib/skills-service";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
+
   try {
     const body = await req.json() as {
       cwd?: unknown;

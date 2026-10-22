@@ -11,9 +11,13 @@ import {
   shouldShowWindowsDrivePicker,
 } from "@/lib/directory-browser";
 import { isRegistrableRoot } from "@/lib/root-registration-policy";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 // GET /api/cwd/browse?path=...：列出文件系统中的可读子目录。
 export async function GET(request: NextRequest) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
+
   try {
     const requested = request.nextUrl.searchParams.get("path")?.trim();
 
@@ -59,6 +63,9 @@ export async function GET(request: NextRequest) {
 // POST /api/cwd/browse  body: { path: string, name: string }
 // Creates one direct child of the currently browsed directory.
 export async function POST(request: Request) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
+
   if (!isApiRequestAllowed(request)) {
     return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
   }

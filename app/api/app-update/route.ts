@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { AppUpdateResponse } from "@/lib/api-types";
 import { getPiWebReleaseUrl, isNewerStableVersion } from "@/lib/app-update";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,9 @@ async function loadUpdateStatus(): Promise<AppUpdateResponse> {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   if (SKIP_VERSION_CHECK) {
     return NextResponse.json({
       currentVersion: CURRENT_VERSION,

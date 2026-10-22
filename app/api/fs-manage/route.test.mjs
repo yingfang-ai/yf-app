@@ -8,7 +8,7 @@ import { createJiti } from "jiti";
 
 // ---------------------------------------------------------------------------
 // Route tests for /api/fs-manage (wi pi#59): jiti-imports the route and
-// drives POST(new Request(...)) over TMP FIXTURES ONLY. Scopes are injected
+// drives POST(operatorRequest(...)) over TMP FIXTURES ONLY. Scopes are injected
 // via __setRegistrationScopesForTesting, live cwds via the guards module's
 // injected session-cwd seam, and guard/mutation failures via its fs/mutator
 // seams — no real AgentSessions are ever constructed.
@@ -17,6 +17,19 @@ import { createJiti } from "jiti";
 const routeSource = await readFile(new URL("./route.ts", import.meta.url), "utf8");
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
 const { POST } = await jiti.import("./route.ts");
+// 运营者守卫（plan step 5）：本路由族仅运营者可用——测试以运营者会话直调。
+process.env.YF_OPERATOR_USER_IDS = "abad1dea000000000000000000000000";
+const { mkdtempSync: mkOperatorRoot } = await import("node:fs");
+const { tmpdir: operatorTmpdir } = await import("node:os");
+const operatorDataRoot = mkOperatorRoot((await import("node:path")).join(operatorTmpdir(), "yf-operator-guard-"));
+process.env.YF_DATA_DIR = operatorDataRoot;
+const { writeSessionIndex } = await jiti.import("../../../../lib/yf/session-index.ts");
+writeSessionIndex(operatorDataRoot, "guard-tests", {
+  user_id: "abad1dea000000000000000000000000",
+  expires_at: "2030-01-01T00:00:00Z",
+});
+const operatorRequest = (url, init = {}) =>
+  new Request(url, { ...init, headers: { Cookie: "yf_session=guard-tests", ...(init.headers ?? {}) } });
 const {
   __setFsManageSessionCwdSourceForTesting: setCwdSource,
   __setFsManageFsSeamsForTesting: setFsSeams,
@@ -30,7 +43,7 @@ function eacces() {
 }
 
 async function post(body, headers = {}) {
-  const response = await POST(new Request("http://localhost/api/fs-manage", {
+  const response = await POST(operatorRequest("http://localhost/api/fs-manage", {
     method: "POST",
     headers: { host: "localhost", "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
@@ -147,7 +160,7 @@ test("invalidBody: every malformed shape (incl. cross-parent nextPath) answers 2
     assert.deepEqual(result.data, { ok: false, reason: "invalidBody" });
   }
   // A non-JSON body is invalidBody too.
-  const response = await POST(new Request("http://localhost/api/fs-manage", {
+  const response = await POST(operatorRequest("http://localhost/api/fs-manage", {
     method: "POST",
     headers: { host: "localhost", "Content-Type": "application/json" },
     body: "not json",

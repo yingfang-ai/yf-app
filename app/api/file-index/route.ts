@@ -10,6 +10,7 @@ import {
 import { execFileAsync } from "@/lib/exec-file";
 import { buildEntriesFromFiles, filterFileEntries, type FileIndexEntry } from "@/lib/file-fuzzy";
 import { isHiddenOutsideGit } from "@/lib/file-tree-visibility";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 /** Cap on the plain (no-query) response used as the client-side index */
 const MAX_FILES = 5000;
@@ -105,6 +106,9 @@ function listWithWalk(cwd: string): FileListing {
 // matching, like the TUI passing the query to fd).
 // Guarded by the same allow-list as /api/files.
 export async function GET(req: NextRequest) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
+
   try {
     const cwd = req.nextUrl.searchParams.get("cwd")?.trim() ?? "";
     if (!cwd || (!cwd.startsWith("/") && !isWindowsAbsolutePath(cwd))) {

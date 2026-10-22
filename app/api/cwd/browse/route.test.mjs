@@ -24,6 +24,19 @@ const jiti = createJiti(import.meta.url, {
   moduleCache: false,
 });
 const { GET, POST } = await jiti.import("./route.ts");
+// 运营者守卫（plan step 5）：本路由族仅运营者可用——测试以运营者会话直调。
+process.env.YF_OPERATOR_USER_IDS = "abad1dea000000000000000000000000";
+const { mkdtempSync: mkOperatorRoot } = await import("node:fs");
+const { tmpdir: operatorTmpdir } = await import("node:os");
+const operatorDataRoot = mkOperatorRoot((await import("node:path")).join(operatorTmpdir(), "yf-operator-guard-"));
+process.env.YF_DATA_DIR = operatorDataRoot;
+const { writeSessionIndex } = await jiti.import("../../../../../lib/yf/session-index.ts");
+writeSessionIndex(operatorDataRoot, "guard-tests", {
+  user_id: "abad1dea000000000000000000000000",
+  expires_at: "2030-01-01T00:00:00Z",
+});
+const operatorRequest = (url, init = {}) =>
+  new Request(url, { ...init, headers: { Cookie: "yf_session=guard-tests", ...(init.headers ?? {}) } });
 const { NextRequest } = await jiti.import("next/server");
 const { __setRegistrationScopesForTesting: setRegistrationScopes } = await jiti.import(
   "../../../../lib/root-registration-policy.ts",
@@ -43,7 +56,7 @@ fs.mkdirSync(homeFixture, { recursive: true });
 setRegistrationScopes(homeFixture, base);
 
 function createDirectory(pathValue, name) {
-  return POST(new Request("http://localhost/api/cwd/browse", {
+  return POST(operatorRequest("http://localhost/api/cwd/browse", {
     method: "POST",
     headers: { host: "localhost", "content-type": "application/json" },
     body: JSON.stringify({ path: pathValue, name }),
@@ -92,7 +105,7 @@ test("refuses mkdir through a symlink that escapes the registration prefixes", a
 
 function browseRequest(query) {
   return new NextRequest(`http://localhost/api/cwd/browse${query}`, {
-    headers: { host: "localhost" },
+    headers: { host: "localhost", Cookie: "yf_session=guard-tests" },
   });
 }
 

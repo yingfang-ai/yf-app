@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { mkdirSync } from "fs";
 import { defaultCwdPath } from "@/lib/default-cwd";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 // GET /api/default-cwd
 // Reports today's default directory (~/pi-cwd-<YYYYMMDD>) WITHOUT creating
@@ -8,14 +9,18 @@ import { defaultCwdPath } from "@/lib/default-cwd";
 // "use default directory" button when pinned projects diverge from it)
 // without side effects. Selection still goes through POST, which creates
 // the directory and allow-lists it for the file browser.
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   return NextResponse.json({ cwd: defaultCwdPath() });
 }
 
 // POST /api/default-cwd
 // Creates ~/pi-cwd/<YYYYMMDD> (local date) if it doesn't exist and returns the path.
 // The client then selects it through /api/cwd/validate like any other directory.
-export async function POST() {
+export async function POST(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   try {
     const dir = defaultCwdPath();
     mkdirSync(dir, { recursive: true });

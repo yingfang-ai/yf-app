@@ -10,6 +10,7 @@ import {
   type FsManageFs,
   type FsManageMutator,
 } from "@/lib/fs-manage-guards";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 /**
  * POST /api/fs-manage — guarded browse-area directory rename/delete
@@ -41,6 +42,9 @@ function typedResponse(body: { ok: true; path: string } | { ok: false; reason: s
 }
 
 export async function POST(request: Request) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
+
   // Standard trust gate, exactly like every other POST route.
   if (!isApiRequestAllowed(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

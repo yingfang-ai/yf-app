@@ -3,6 +3,7 @@ import { resolve } from "path";
 import { NextResponse } from "next/server";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { isFileManagerSupported, isLoopbackHost, launchFileManager } from "@/lib/open-in-file-manager";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,12 +17,18 @@ function availabilityFor(request: Request): { supported: boolean; reason: string
 
 /** Lets the sidebar pick the button label and disable it when unavailable. */
 export async function GET(request: Request) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
+
   const { supported, reason } = availabilityFor(request);
   return NextResponse.json({ supported, reason, platform: process.platform });
 }
 
 /** Opens the session workspace in the OS file manager. */
 export async function POST(request: Request) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
+
   try {
     const { supported, reason } = availabilityFor(request);
     if (!supported) {

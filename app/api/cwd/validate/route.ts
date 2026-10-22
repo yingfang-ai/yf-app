@@ -6,6 +6,7 @@ import { allowFileRoot } from "@/lib/file-access";
 import { isRegistrableRoot } from "@/lib/root-registration-policy";
 import { projectIdentityKey } from "@/lib/project-identity";
 import { resolveProject } from "@/lib/worktree";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 function normalizeCwd(cwd: string): string {
   if (cwd === "~") return homedir();
@@ -16,6 +17,9 @@ function normalizeCwd(cwd: string): string {
 // POST /api/cwd/validate  body: { cwd: string }
 // Validates a candidate workspace before the UI selects it.
 export async function POST(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
+
   try {
     const body = await req.json() as { cwd?: unknown };
     const cwd = typeof body.cwd === "string" ? body.cwd.trim() : "";

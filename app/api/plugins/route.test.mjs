@@ -17,6 +17,19 @@ await writeFile(join(agentDir, "extensions", "rtk.ts"), "export default () => {}
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd() } });
 const { allowFileRoot } = await jiti.import("../../../lib/file-access.ts");
 const { GET, POST } = await jiti.import("./route.ts");
+// 运营者守卫（plan step 5）：本路由族仅运营者可用——测试以运营者会话直调。
+process.env.YF_OPERATOR_USER_IDS = "abad1dea000000000000000000000000";
+const { mkdtempSync: mkOperatorRoot } = await import("node:fs");
+const { tmpdir: operatorTmpdir } = await import("node:os");
+const operatorDataRoot = mkOperatorRoot((await import("node:path")).join(operatorTmpdir(), "yf-operator-guard-"));
+process.env.YF_DATA_DIR = operatorDataRoot;
+const { writeSessionIndex } = await jiti.import("../../../../lib/yf/session-index.ts");
+writeSessionIndex(operatorDataRoot, "guard-tests", {
+  user_id: "abad1dea000000000000000000000000",
+  expires_at: "2030-01-01T00:00:00Z",
+});
+const operatorRequest = (url, init = {}) =>
+  new Request(url, { ...init, headers: { Cookie: "yf_session=guard-tests", ...(init.headers ?? {}) } });
 allowFileRoot(cwd);
 
 after(async () => {
@@ -26,7 +39,7 @@ after(async () => {
 });
 
 test("lists auto-discovered top-level extensions", async () => {
-  const response = await GET(new Request(`http://localhost/api/plugins?cwd=${encodeURIComponent(cwd)}`));
+  const response = await GET(operatorRequest(`http://localhost/api/plugins?cwd=${encodeURIComponent(cwd)}`));
   const body = await response.json();
 
   assert.equal(response.status, 200);
@@ -53,7 +66,7 @@ test("reports the package description from package.json", async () => {
   await writeFile(join(packageDir, "extensions", "index.ts"), "export default () => {};\n");
   await writeFile(join(agentDir, "settings.json"), JSON.stringify({ packages: [packageDir] }));
 
-  const response = await GET(new Request(`http://localhost/api/plugins?cwd=${encodeURIComponent(cwd)}`));
+  const response = await GET(operatorRequest(`http://localhost/api/plugins?cwd=${encodeURIComponent(cwd)}`));
   const body = await response.json();
 
   assert.equal(response.status, 200);
@@ -78,7 +91,7 @@ async function readPackages() {
 }
 
 function postPlugins(body, projectCwd = cwd) {
-  return POST(new Request("http://localhost/api/plugins", {
+  return POST(operatorRequest("http://localhost/api/plugins", {
     method: "POST",
     headers: { host: "localhost", "content-type": "application/json" },
     body: JSON.stringify({ cwd: projectCwd, ...body }),

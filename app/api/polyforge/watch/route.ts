@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isApiRequestAllowed } from "@/lib/request-security";
 import { getPolyforgeWatch, isPolyforgeWiRef, PolyforgeError } from "@/lib/polyforge-status";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,9 @@ export const dynamic = "force-dynamic";
  * snapshot. No 5xx path.
  */
 export async function GET(request: Request) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
+
   if (!isApiRequestAllowed(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

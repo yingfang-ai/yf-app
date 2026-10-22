@@ -26,6 +26,7 @@ import type {
   PluginsResponse,
   PluginToggleResult,
 } from "@/lib/api-types";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -390,6 +391,9 @@ function readScope(scope: unknown): PluginScope {
 }
 
 export async function GET(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
+
   const { searchParams } = new URL(req.url);
   const cwd = searchParams.get("cwd");
   if (!cwd) return NextResponse.json({ error: "cwd required" }, { status: 400 });
@@ -409,6 +413,9 @@ export async function GET(req: Request) {
 // enable/disable also take { packages: [{ source, scope }] } in place of
 // source/scope and add per-package `results` to the response.
 export async function POST(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
+
   if (!isApiRequestAllowed(req)) {
     return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
   }

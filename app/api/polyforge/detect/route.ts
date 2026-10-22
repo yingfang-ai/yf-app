@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isApiRequestAllowed } from "@/lib/request-security";
 import { detectPolyforge } from "@/lib/polyforge-detect";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,9 @@ export const dynamic = "force-dynamic";
  * `?force=1` bypasses the 60s presence cache read (the 「重新检测」 control).
  */
 export async function GET(request: Request) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
+
   if (!isApiRequestAllowed(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
