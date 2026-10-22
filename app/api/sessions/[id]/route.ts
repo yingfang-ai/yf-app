@@ -26,12 +26,15 @@ import type { SessionEntry } from "@/lib/types";
 import { readSubagentRun, readSubagentSessionResources, SUBAGENT_META_TYPE } from "@/lib/subagents";
 import { readSessionToolSelection } from "@/lib/session-tool-selection";
 import { jsonResponse } from "@/lib/json-response";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(req, id);
+  if (denied) return denied;
   const perf = startServerPerf("GET /api/sessions/[id]");
   try {
     perf?.span("resolve");
@@ -191,6 +194,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(req, id);
+  if (denied) return denied;
   try {
     const { name } = await req.json() as { name?: string };
     if (typeof name !== "string") {
@@ -218,6 +223,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(_req, id);
+  if (denied) return denied;
   try {
     const filePath = await resolveSessionPath(id);
     if (!filePath) {

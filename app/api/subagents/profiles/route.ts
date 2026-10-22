@@ -9,6 +9,7 @@ import {
   type SubagentWritableScope,
 } from "@/lib/subagents";
 import { writeDisabledBuiltInSubagent } from "@/lib/subagent-settings";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,8 @@ function validateToggleScope(scope: unknown): SubagentWritableScope | "builtin" 
 }
 
 export async function GET(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   try {
     const cwd = await validateCwd(new URL(req.url).searchParams.get("cwd"));
     return NextResponse.json({ profiles: listSubagentProfileSources(cwd) });
@@ -41,6 +44,8 @@ export async function GET(req: Request) {
 }
 
 export async function PUT(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   try {
     const body = await req.json() as {
       cwd?: unknown;
@@ -60,6 +65,8 @@ export async function PUT(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   try {
     const body = await req.json() as { cwd?: unknown; scope?: unknown; name?: unknown; enabled?: unknown };
     const cwd = await validateCwd(body.cwd);
@@ -107,6 +114,8 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   try {
     const body = await req.json() as { cwd?: unknown; scope?: unknown; name?: unknown };
     const cwd = await validateCwd(body.cwd);

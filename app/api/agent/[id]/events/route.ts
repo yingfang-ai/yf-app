@@ -1,6 +1,7 @@
 import { createAgentEventStream } from "@/lib/agent-event-stream";
 import { resolveSessionPath } from "@/lib/session-reader";
 import { getRpcSession, startRpcSession } from "@/lib/rpc-manager";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(req, id);
+  if (denied) return denied;
   if (req.signal.aborted) return new Response(null, { status: 204 });
 
   // Fast path: already-running session

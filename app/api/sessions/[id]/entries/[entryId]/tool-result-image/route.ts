@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionEntries, resolveSessionPath } from "@/lib/session-reader";
 import { MAX_TOOL_RESULT_IMAGE_BYTES, TOOL_RESULT_IMAGE_MIMES } from "@/lib/tool-result-images";
 import { isRecord } from "@/lib/type-guards";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 function readBase64Image(block: unknown): { data: string; mime: string } | null {
   if (!isRecord(block) || block.type !== "image") return null;
@@ -43,6 +44,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string; entryId: string }> },
 ) {
   const { id, entryId } = await params;
+  const denied = await requireSessionAccess(req, id);
+  if (denied) return denied;
   const blockIndexParam = new URL(req.url).searchParams.get("blockIndex");
   const blockIndex = blockIndexParam === null ? Number.NaN : Number(blockIndexParam);
   if (!Number.isSafeInteger(blockIndex) || blockIndex < 0) {

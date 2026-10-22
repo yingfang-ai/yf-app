@@ -1,3 +1,4 @@
+import "../../../lib/yf/test-operator.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -55,8 +56,8 @@ function request(method, filePath, type, body, contentType = "application/json")
   const context = { params: Promise.resolve({ path: encoded.split("/").map(decodeURIComponent) }) };
   const handler = method === "GET" ? GET : POST;
   const init = body === undefined
-    ? { method, headers: { host: "localhost" } }
-    : { method, headers: { host: "localhost", "content-type": contentType }, body: JSON.stringify(body) };
+    ? { method, headers: { host: "localhost", cookie: "yf_session=guard-tests" } }
+    : { method, headers: { host: "localhost", "content-type": contentType, cookie: "yf_session=guard-tests" }, body: JSON.stringify(body) };
   return handler(new NextRequest(url, init), context);
 }
 

@@ -1,5 +1,6 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, ModelRuntime, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
+import { isUserDataCwd } from "./yf/user-dirs";
 import { LLM_CHANNEL_PROVIDER_ID, llmChannelModelRuntime, readLlmConfig } from "./yf/llm-config";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import { randomUUID } from "crypto";
@@ -2490,8 +2491,13 @@ export async function startRpcSession(
   const persistedToolNames = subagentResources
     ? undefined
     : readSessionToolSelection(sessionEntries);
-  const selectedToolNames = subagentResources?.tools ?? persistedToolNames ?? requestedToolNames;
-  if (!subagentResources && persistedToolNames === undefined && requestedToolNames !== undefined) {
+  // 普通用户的会话（cwd 在 `<数据根>/users/` 之内，yingfang#28 step 10/A1）是无工具聊天：
+  // 不论请求或持久化的工具选择是什么，一律 chat-only（无读写文件、无 shell、不载扩展）。
+  const userChatSession = !subagentResources && isUserDataCwd(sessionCwd);
+  const selectedToolNames = userChatSession
+    ? []
+    : subagentResources?.tools ?? persistedToolNames ?? requestedToolNames;
+  if (!subagentResources && persistedToolNames === undefined && requestedToolNames !== undefined && !userChatSession) {
     appendSessionToolSelection(sessionManager, requestedToolNames);
   }
   const subagentLoadsResources = Boolean(

@@ -54,7 +54,7 @@ test("an operator user_id (env union) is reported as operator", async () => {
   assert.equal((await response.json()).operator, true);
 });
 
-test("an expired session is 401", async () => {
-  writeSessionIndex(dataRoot, "tok-expired", { user_id: "0".repeat(32), expires_at: "2020-01-01T00:00:00Z" });
-  assert.equal((await get("yf_session=tok-expired")).status, 401);
+test("expires_at is recorded but not re-judged here (yingfang + the cookie's own lifetime own expiry)", async () => {
+  writeSessionIndex(dataRoot, "tok-past", { user_id: "1".repeat(32), expires_at: "2020-01-01T00:00:00Z" });
+  assert.equal((await get("yf_session=tok-past")).status, 200);
 });

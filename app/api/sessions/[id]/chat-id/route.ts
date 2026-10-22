@@ -8,6 +8,7 @@ import {
   chatInitArgv,
   createSessionChatIdResolver,
 } from "@/lib/session-chat-id";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,8 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
+  const denied = await requireSessionAccess(request, id);
+  if (denied) return denied;
   let chatId: string | null = null;
   try {
     chatId = await resolveSessionChatId(id);

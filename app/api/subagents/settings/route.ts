@@ -6,10 +6,13 @@ import {
   writeBuiltInSubagentsEnabled,
   writeSubagentMaxConcurrent,
 } from "@/lib/subagent-settings";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   try {
     const settings = readSubagentSettings();
     return NextResponse.json({ enabled: settings.builtInEnabled, maxConcurrent: settings.maxConcurrent });
@@ -22,6 +25,8 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   if (!isApiRequestAllowed(req)) {
     return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
   }

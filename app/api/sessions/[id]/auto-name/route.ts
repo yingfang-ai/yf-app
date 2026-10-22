@@ -3,12 +3,15 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { generateSessionTitle } from "@/lib/session-title";
 import { getRpcSession, startRpcSession } from "@/lib/rpc-manager";
 import { invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(_req, id);
+  if (denied) return denied;
 
   try {
     const filePath = await resolveSessionPath(id);

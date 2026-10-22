@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
+import { requireOperator } from "@/lib/yf/route-policy";
 import { isProviderUsageId, queryProviderUsage } from "@/lib/provider-usage";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
   if (!isApiRequestAllowed(request)) return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
   if (!hasJsonContentType(request)) return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
 

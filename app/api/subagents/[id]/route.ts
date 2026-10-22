@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { abortSubagent, getSubagentRun, steerSubagent } from "@/lib/rpc-manager";
+import { requireOperator } from "@/lib/yf/route-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOperator(_req);
+  if (denied) return denied;
   const { id } = await params;
   try {
     const run = await getSubagentRun(id);
@@ -21,6 +24,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   const { id } = await params;
   try {
     const body = await req.json() as { action?: unknown; message?: unknown };

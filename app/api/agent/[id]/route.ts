@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveSessionPath } from "@/lib/session-reader";
 import { getRpcSession, isSessionReloadedFromDiskError, setRpcSessionTools, startRpcSession } from "@/lib/rpc-manager";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 // POST /api/agent/[id] - Send a command to an existing session
 export async function POST(
@@ -8,6 +9,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(req, id);
+  if (denied) return denied;
   let commandType: string | undefined;
   let promptAccepted = false;
 
@@ -93,6 +96,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(_req, id);
+  if (denied) return denied;
 
   try {
     const session = getRpcSession(id);

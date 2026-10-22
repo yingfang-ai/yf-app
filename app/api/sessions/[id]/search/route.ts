@@ -3,6 +3,7 @@ import { resolveSessionPath, openSessionManager, SM_CACHE_LIMITS } from "@/lib/s
 import { getRpcSession } from "@/lib/rpc-manager";
 import { searchActiveBranch } from "@/lib/session-branch-search";
 import { statSync } from "node:fs";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(req, id);
+  if (denied) return denied;
   const url = new URL(req.url);
   const query = (url.searchParams.get("q") ?? "").trim();
   const leafId = url.searchParams.get("leafId");

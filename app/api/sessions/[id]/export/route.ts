@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { NextResponse } from "next/server";
 import { execFileAsync } from "@/lib/exec-file";
 import { resolveSessionPath } from "@/lib/session-reader";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 export const runtime = "nodejs";
 
@@ -240,6 +241,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(req, id);
+  if (denied) return denied;
   const inline = new URL(req.url).searchParams.get("inline") === "1";
 
   try {

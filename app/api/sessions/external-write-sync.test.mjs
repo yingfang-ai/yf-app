@@ -1,3 +1,4 @@
+import "../../../lib/yf/test-operator.mjs";
 // Integration test for external-write auto-sync (issue: pi TUI writes to a
 // session file while pi-web has it open). Follows the fixture pattern of
 // runtime-route.test.mjs: PI_CODING_AGENT_DIR points at a temp agent dir, and
@@ -112,7 +113,7 @@ test("an externally written session appears without a force refresh and reads st
   assert.equal(listed.firstMessage, "Written by the TUI");
 
   // The running poll reports the write so the open chat view can reload.
-  const runningSnapshot = await running();
+  const runningSnapshot = await running(new Request("http://localhost/api/agent/running"));
   const writeReport = (runningSnapshot.recentSessionWrites ?? []).find(
     (write) => write.sessionId === SESSION_ID,
   );
@@ -124,7 +125,7 @@ test("an externally written session appears without a force refresh and reads st
   const generationBefore = writeReport.generation;
   appendFileSync(sessionFile, `${laterEntry}\n`);
   const generationRose = await waitFor(async () => {
-    const snapshot = await running();
+    const snapshot = await running(new Request("http://localhost/api/agent/running"));
     const entry = (snapshot.recentSessionWrites ?? []).find(
       (write) => write.sessionId === SESSION_ID,
     );
@@ -137,7 +138,7 @@ test("an externally written session appears without a force refresh and reads st
   const settledVersion = (await list()).sessionListVersion;
   for (let i = 0; i < 3; i += 1) {
     await list();
-    await running();
+    await running(new Request("http://localhost/api/agent/running"));
   }
   assert.equal(
     (await list()).sessionListVersion,

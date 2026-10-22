@@ -1,3 +1,4 @@
+import "../../../lib/yf/test-operator.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -22,7 +23,7 @@ test("mkdir reuses the upload path's security machinery verbatim", async () => {
   const mkdirBlock = route.slice(mkdirStart, route.indexOf('if (type !== "upload")', mkdirStart));
   // The allowed-roots check (including the realpathSync symlink defense) is
   // the shared getUploadDirectory helper, resolved before the mkdir branch.
-  assert.match(route.slice(postStart, mkdirStart), /await getUploadDirectory\(segments\)/);
+  assert.match(route.slice(postStart, mkdirStart), /await getUploadDirectory\(request, segments\)/);
   assert.match(mkdirBlock, /validateMkdirFolderName\(name\)/);
   // Exactly parent/name, no intermediates.
   assert.match(mkdirBlock, /path\.join\(directory, name as string\)/);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRpcSession } from "@/lib/rpc-manager";
 import { bgOperationFailureStatus } from "@/lib/background-tasks-bridge";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string; taskId: string }> },
 ) {
   const { id, taskId } = await params;
+  const denied = await requireSessionAccess(req, id);
+  if (denied) return denied;
   const session = getRpcSession(id);
   const bridge = session?.getBackgroundTasks() ?? null;
   if (!bridge) {

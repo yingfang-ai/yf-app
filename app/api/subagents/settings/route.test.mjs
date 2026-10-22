@@ -1,3 +1,4 @@
+import "../../../../lib/yf/test-operator.mjs";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -31,7 +32,7 @@ function request(body, contentType = "application/json") {
 }
 
 test("settings route defaults off and persists both switch states", async () => {
-  let response = await GET();
+  let response = await GET(new Request("http://localhost/api/subagents/settings"));
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { enabled: false, maxConcurrent: 10 });
 

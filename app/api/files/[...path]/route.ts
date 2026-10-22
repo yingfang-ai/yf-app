@@ -22,6 +22,9 @@ import {
 import { resolveDirentIsDirectory } from "@/lib/file-dirent";
 import { getFileTreeVisibility, readIgnoredNames } from "@/lib/file-tree-visibility";
 import { isFilePathReferencedBySession } from "@/lib/session-file-references";
+import { resolveYfIdentity } from "@/lib/yf/identity";
+import { ownFileRoots } from "@/lib/yf/file-roots";
+import { requireOperator } from "@/lib/yf/route-policy";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 import {
   inspectUploadTargets,
@@ -97,11 +100,28 @@ function parseFileRequestType(value: string): FileRequestType | null {
   return FILE_REQUEST_TYPE_SET.has(value) ? (value as FileRequestType) : null;
 }
 
-async function getUploadDirectory(segments: string[]): Promise<
+/**
+ * 当前请求的 files 根：运营者 = 上游的会话 cwd 并集；普通用户 = 只有自己的会话目录
+ * 与画廊（plan step 10）。匿名 → null（调用方 401）。
+ */
+async function allowedRootsFor(request: Request): Promise<{ roots: Set<string>; operator: boolean } | null> {
+  const identity = resolveYfIdentity(request);
+  if (!identity) return null;
+  return {
+    roots: identity.operator ? await getAllowedFileRoots() : ownFileRoots(identity.userId),
+    operator: identity.operator,
+  };
+}
+
+const UNAUTHORIZED = () => NextResponse.json({ error: "Authentication required" }, { status: 401 });
+
+async function getUploadDirectory(request: Request, segments: string[]): Promise<
   { directory: string } | { response: NextResponse }
 > {
   const directory = filePathFromApiSegments(segments);
-  const allowedRoots = await getAllowedFileRoots();
+  const scope = await allowedRootsFor(request);
+  if (!scope) return { response: UNAUTHORIZED() };
+  const allowedRoots = scope.roots;
 
   let stat: fs.Stats;
   try {
@@ -130,6 +150,9 @@ async function allowLinkedDirectory(
   request: NextRequest,
   segments: string[],
 ): Promise<NextResponse> {
+  // 任意目录登记是运营者的显式选择；普通用户直访 403。
+  const denied = await requireOperator(request);
+  if (denied) return denied;
   if (!hasJsonContentType(request)) {
     return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
   }
@@ -188,7 +211,9 @@ export async function POST(
       // regular file inside an allowed root with BOTH sides realpath-checked
       // (isExistingFilePathAllowed), mirroring the audit-P1 upload chain.
       const filePath = filePathFromApiSegments(segments);
-      const allowedRoots = await getAllowedFileRoots();
+      const scope = await allowedRootsFor(request);
+      if (!scope) return UNAUTHORIZED();
+      const allowedRoots = scope.roots;
       let stat: fs.Stats;
       try {
         stat = fs.statSync(filePath);
@@ -234,7 +259,7 @@ export async function POST(
 
     if (type === "allow-link") return allowLinkedDirectory(request, segments);
 
-    const uploadDirectory = await getUploadDirectory(segments);
+    const uploadDirectory = await getUploadDirectory(request, segments);
     if ("response" in uploadDirectory) return uploadDirectory.response;
     const { directory } = uploadDirectory;
 
@@ -605,9 +630,13 @@ export async function GET(
     }
     const sessionId = request.nextUrl.searchParams.get("sessionId");
 
-    const allowedRoots = await getAllowedFileRoots();
+    const scope = await allowedRootsFor(request);
+    if (!scope) return UNAUTHORIZED();
+    const allowedRoots = scope.roots;
     const allowedByRoot = isFilePathAllowed(filePath, allowedRoots);
+    // 会话引用放行只给运营者：普通用户的可见面就是自己的两个根。
     const allowedBySessionReference =
+      scope.operator &&
       !allowedByRoot &&
       type !== "list" &&
       await isFilePathReferencedBySession(filePath, sessionId);

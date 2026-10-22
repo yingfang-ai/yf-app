@@ -1,3 +1,4 @@
+import "../../../../lib/yf/test-operator.mjs";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, symlink } from "node:fs/promises";
 import { realpathSync } from "node:fs";

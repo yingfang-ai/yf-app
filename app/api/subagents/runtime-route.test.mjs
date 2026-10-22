@@ -1,3 +1,4 @@
+import "../../../lib/yf/test-operator.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createJiti } from "jiti";

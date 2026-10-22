@@ -6,6 +6,9 @@ import { allowFileRoot } from "@/lib/file-access";
 import { isRegistrableRoot } from "@/lib/root-registration-policy";
 import { invalidateSessionListCache } from "@/lib/session-reader";
 import { startRpcSession } from "@/lib/rpc-manager";
+import { resolveYfIdentity } from "@/lib/yf/identity";
+import { unauthorizedResponse } from "@/lib/yf/session-access";
+import { ensureUserDataDir } from "@/lib/yf/user-dirs";
 
 const THINKING_LEVELS = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
@@ -24,9 +27,20 @@ export async function POST(req: Request) {
   let commandType: string | undefined;
   let promptAccepted = false;
   try {
+    const identity = resolveYfIdentity(req);
+    if (!identity) return unauthorizedResponse();
     const body = await req.json() as { cwd?: string; [key: string]: unknown };
-    const { cwd, ...command } = body;
+    const { cwd: requestedCwd, ...command } = body;
     commandType = typeof command.type === "string" ? command.type : undefined;
+    // 普通用户（plan step 10，R5/R10）：会话 cwd 永远是自己的数据目录（服务端建，客户端
+    // 给的 cwd 不采纳）；模型与工具由服务端定（单一 LLM 通道、无工具聊天）。运营者保持
+    // 上游行为。
+    const cwd = identity.operator ? requestedCwd : ensureUserDataDir(identity.userId);
+    if (!identity.operator) {
+      delete command.provider;
+      delete command.modelId;
+      delete command.toolNames;
+    }
 
     if (!cwd || typeof cwd !== "string") {
       return NextResponse.json({
@@ -54,7 +68,8 @@ export async function POST(req: Request) {
     // path — the client-supplied alias must never be registered, or a
     // later retargeted symlink inside home would smuggle an outside
     // directory into the trusted prefixes (review r1 P1, pi#55).
-    const registrable = isRegistrableRoot(cwd);
+    // 普通用户的目录是服务端按 user_id 生成的，不走「家目录前缀」登记策略。
+    const registrable = identity.operator ? isRegistrableRoot(cwd) : { ok: true as const, path: cwd };
     if (!registrable.ok) {
       return NextResponse.json({
         error: "Workspace path is not registrable as a file root",
@@ -85,7 +100,7 @@ export async function POST(req: Request) {
     // Keep the files-route allowed-roots cache (see app/api/files/[...path]/route.ts)
     // in sync so the new cwd is immediately readable via /api/files. Without this,
     // a file request under a brand-new cwd would 403 for up to the cache TTL.
-    allowFileRoot(registrable.path);
+    if (identity.operator) allowFileRoot(registrable.path);
     invalidateSessionListCache();
 
     const state = await session.send({ type: "get_state" }) as {

@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { yfDataRoot } from "./data-root";
-import { readSessionIndex, yfSessionTokenFromCookie } from "./session-index";
-import { isOperatorUserId } from "./operators";
+import { resolveYfIdentity } from "./identity";
 
 /**
  * 运营者限定路由表（plan step 5，spec R5/A2/A5，路由族从基线树 2481a70 实查）：
@@ -29,6 +27,8 @@ export const OPERATOR_ONLY_ROUTE_PREFIXES = [
   "/api/git", // status、diff（agent 面的 git 状态展示，R5 运营者限定）
   "/api/file-index",
   "/api/tools/settings",
+  "/api/provider-usage", // query（读运营者机器上的 provider 凭据）
+  "/api/subagents", // profiles、settings、[id]（子代理配置/运行面）
 ] as const;
 
 export function isOperatorOnlyRoute(pathname: string): boolean {
@@ -49,16 +49,8 @@ function deny(status: 401 | 403, code: string, message: string): NextResponse {
  *   if (denied) return denied;
  */
 export async function requireOperator(request: Request): Promise<NextResponse | null> {
-  const token = yfSessionTokenFromCookie(request.headers.get("cookie"));
-  if (!token) {
-    return deny(401, "unauthorized", "未登录");
-  }
-  const entry = readSessionIndex(yfDataRoot(), token);
-  if (!entry || Date.parse(entry.expires_at) <= Date.now()) {
-    return deny(401, "unauthorized", "未登录");
-  }
-  if (!isOperatorUserId(entry.user_id)) {
-    return deny(403, "forbidden", "权限不足（该面仅运营者可用）");
-  }
+  const identity = resolveYfIdentity(request);
+  if (!identity) return deny(401, "unauthorized", "未登录");
+  if (!identity.operator) return deny(403, "forbidden", "权限不足（该面仅运营者可用）");
   return null;
 }

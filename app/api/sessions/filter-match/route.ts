@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { filterSessionsFor, unauthorizedResponse } from "@/lib/yf/session-access";
+import { resolveYfIdentity } from "@/lib/yf/identity";
 import { jsonResponse } from "@/lib/json-response";
 import { isSessionFiltered } from "@/lib/session-filter";
 import { listAllSessions } from "@/lib/session-reader";
@@ -20,6 +22,8 @@ const MAX_PATTERN_LENGTH = 500;
  * and the list payload stays small.
  */
 export async function GET(req: Request) {
+  const identity = resolveYfIdentity(req);
+  if (!identity) return unauthorizedResponse();
   try {
     const raw = new URL(req.url).searchParams.get("patterns") ?? "[]";
     let patterns: unknown;
@@ -38,7 +42,7 @@ export async function GET(req: Request) {
 
     // allowStale: matching is a read-only concern; the reader's cache keeps
     // the FULL first message and a stale scan is at worst one generation old.
-    const sessions = await listAllSessions({ allowStale: true });
+    const sessions = filterSessionsFor(identity, await listAllSessions({ allowStale: true }));
     const matchedIds = sessions
       .filter((session) => isSessionFiltered(session, patterns as string[]))
       .map((session) => session.id);

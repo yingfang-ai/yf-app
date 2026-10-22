@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { resolveSessionPath, openSessionManager, buildSessionContext } from "@/lib/session-reader";
 import { cachedSessionBuild } from "@/lib/context-build-cache";
 import { getRpcSession } from "@/lib/rpc-manager";
+import { requireSessionAccess } from "@/lib/yf/session-access";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const denied = await requireSessionAccess(req, id);
+  if (denied) return denied;
   const url = new URL(req.url);
   const leafId = url.searchParams.get("leafId") ?? undefined;
   const deferThinking = url.searchParams.has("deferThinking");

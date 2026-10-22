@@ -1,3 +1,4 @@
+import "../../../lib/yf/test-operator.mjs";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -61,7 +62,7 @@ test("list versions expose idle session creation, rename and deletion to other w
   const url = `http://localhost/api/sessions/${sessionId}`;
   const renamed = await renameSession(new Request(url, { method: "PATCH", body: JSON.stringify({ name: "Renamed elsewhere" }) }), context);
   assert.equal(renamed.status, 200);
-  const poll = await (await getRunningSessions()).json();
+  const poll = await (await getRunningSessions(new Request("http://localhost/api/agent/running"))).json();
   assert.deepEqual(poll.runningSessionIds, []);
   assert.ok(poll.sessionListVersion > created.sessionListVersion);
   const updated = await list();
@@ -73,7 +74,7 @@ test("list versions expose idle session creation, rename and deletion to other w
   const deleted = await list();
   assert.ok(deleted.sessionListVersion > updated.sessionListVersion);
   assert.deepEqual(deleted.sessions, []);
-  assert.equal((await (await getRunningSessions()).json()).sessionListVersion, deleted.sessionListVersion);
+  assert.equal((await (await getRunningSessions(new Request("http://localhost/api/agent/running"))).json()).sessionListVersion, deleted.sessionListVersion);
 });
 
 test("session listing returns a gzip-compressed response when the client accepts it", async (t) => {
@@ -185,7 +186,7 @@ test("deleting an unpersisted session shuts down its runtime and invalidates cac
         globalThis.__piSessions.delete(id);
       },
     });
-    const before = (await (await getRunningSessions()).json()).sessionListVersion;
+    const before = (await (await getRunningSessions(new Request("http://localhost/api/agent/running"))).json()).sessionListVersion;
     const response = await deleteSession(
       new Request(`http://localhost/api/sessions/${id}`, { method: "DELETE" }),
       { params: Promise.resolve({ id }) },
@@ -197,7 +198,7 @@ test("deleting an unpersisted session shuts down its runtime and invalidates cac
     assert.equal(globalThis.__piSessions.has(id), false);
     assert.equal(globalThis.__piSessionPathCache.has(id), false);
     assert.equal([...globalThis.__piPathToSessionIdCache.values()].includes(id), false);
-    assert.ok((await (await getRunningSessions()).json()).sessionListVersion > before);
+    assert.ok((await (await getRunningSessions(new Request("http://localhost/api/agent/running"))).json()).sessionListVersion > before);
     await assert.rejects(readFile(filePath), { code: "ENOENT" });
   }
 });
@@ -224,7 +225,7 @@ test("the list and running poll both carry the awaiting-input session ids from t
     globalThis.__piSessions = previousRegistry;
   });
 
-  const poll = await (await getRunningSessions()).json();
+  const poll = await (await getRunningSessions(new Request("http://localhost/api/agent/running"))).json();
   assert.deepEqual(poll.runningSessionIds, ["awaiting-live", "running-live"]);
   assert.deepEqual(poll.awaitingSessionIds, ["awaiting-live"], "the 2500 ms poll carries awaiting ids next to running ids");
 

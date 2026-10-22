@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { filterSessionsFor, unauthorizedResponse } from "@/lib/yf/session-access";
+import { resolveYfIdentity } from "@/lib/yf/identity";
 import { jsonResponse } from "@/lib/json-response";
 import { trimSessionListFirstMessages } from "@/lib/session-list-payload";
 import {
@@ -19,6 +21,8 @@ import { startServerPerf } from "@/lib/perf";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const identity = resolveYfIdentity(req);
+  if (!identity) return unauthorizedResponse();
   const perf = startServerPerf("GET /api/sessions");
   try {
     const searchParams = new URL(req.url).searchParams;
@@ -39,15 +43,17 @@ export async function GET(req: Request) {
     perf?.span("scan+projects");
     // Trim at the RESPONSE layer only — the reader's view cache and the
     // detail endpoint keep full text.
-    const sessions = trimSessionListFirstMessages(mergeSessionLists(persistedSessions, runtimeSessions));
+    const sessions = trimSessionListFirstMessages(filterSessionsFor(identity, mergeSessionLists(persistedSessions, runtimeSessions)));
+    const visibleIds = new Set(sessions.map((session) => session.id));
+    const onlyVisible = (ids: string[]) => identity.operator ? ids : ids.filter((id) => visibleIds.has(id));
     return perf?.attach(jsonResponse(
       req,
       {
         sessions,
         sessionListVersion,
-        runningSessionIds: getRunningRpcSessionIds(),
-        awaitingSessionIds: getAwaitingRpcSessionIds(),
-        completionNotificationSuppressedSessionIds: getCompletionNotificationSuppressedRpcSessionIds(),
+        runningSessionIds: onlyVisible(getRunningRpcSessionIds()),
+        awaitingSessionIds: onlyVisible(getAwaitingRpcSessionIds()),
+        completionNotificationSuppressedSessionIds: onlyVisible(getCompletionNotificationSuppressedRpcSessionIds()),
       },
       { headers: { "Cache-Control": "no-store" } },
     )) ?? jsonResponse(
@@ -55,9 +61,9 @@ export async function GET(req: Request) {
       {
         sessions,
         sessionListVersion,
-        runningSessionIds: getRunningRpcSessionIds(),
-        awaitingSessionIds: getAwaitingRpcSessionIds(),
-        completionNotificationSuppressedSessionIds: getCompletionNotificationSuppressedRpcSessionIds(),
+        runningSessionIds: onlyVisible(getRunningRpcSessionIds()),
+        awaitingSessionIds: onlyVisible(getAwaitingRpcSessionIds()),
+        completionNotificationSuppressedSessionIds: onlyVisible(getCompletionNotificationSuppressedRpcSessionIds()),
       },
       { headers: { "Cache-Control": "no-store" } },
     );
