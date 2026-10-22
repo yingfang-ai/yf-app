@@ -1,3 +1,4 @@
+@import "@xterm/xterm/css/xterm.css";
 @import "tailwindcss";
 /* demo/ is a separate project; keep its sources out of this app's class scan. */
 @source not "../demo";
@@ -196,7 +197,8 @@ html, body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-ui);
+  font-weight: var(--font-ui-weight);
   font-size: 14px;
   overscroll-behavior: none;
 }
@@ -723,11 +725,22 @@ button.extension-widget-trigger:focus-visible {
 }
 
 :root {
-  --font-mono: var(--font-noto-mono), 'JetBrains Mono', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
+  --font-ui-default: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono-default: var(--font-noto-mono), 'JetBrains Mono', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
+  --font-ui: var(--font-ui-default);
+  --font-mono: var(--font-mono-default);
+  --font-ui-weight: 400;
+  --font-mono-weight: 400;
 }
 
 pre, code {
   font-family: var(--font-mono);
+  font-weight: var(--font-mono-weight);
+}
+
+/* Inline code inside a heading or emphasis keeps that surrounding emphasis. */
+.markdown-body :is(h1, h2, h3, h4, h5, h6, strong, b) code {
+  font-weight: inherit;
 }
 
 /* react-markdown output styles */
@@ -762,6 +775,8 @@ pre, code {
   margin: 5px 0 8px;
   list-style-position: outside;
 }
+/* Room for the widest bold "N. " marker; MarkdownBody sets the digit count. */
+.markdown-body ol { padding-left: calc(0.8em + var(--ol-marker-digits, 2) * 0.62em); }
 .markdown-body li { margin: 3px 0; padding-left: 2px; }
 .markdown-body ul > li { list-style-type: disc; }
 .markdown-body ol > li { list-style-type: decimal; }
@@ -862,6 +877,7 @@ pre, code {
 }
 .markdown-table-wrap > table { width: max-content; }
 .markdown-body th, .markdown-body td {
+  max-width: 240px;
   border: 0;
   border-bottom: 1px solid var(--border);
   padding: 6px 10px;
@@ -919,6 +935,17 @@ pre, code {
 .markdown-custom-message .markdown-table-wrap,
 .markdown-custom-message .markdown-code-block {
   margin: 4px 0;
+}
+
+/* A codemode card's script sits flush inside the card, which draws the border. */
+.tool-codemode-script .markdown-code-block {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.tool-codemode-script .markdown-code-block pre {
+  max-height: 360px;
 }
 
 .markdown-compaction-message {
@@ -1493,11 +1520,8 @@ pre, code {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-/* Browse-row manage affordances (wi pi#59): pencil/trash stay hidden
-   until the row is hovered or keyboard-focused, and are always visible on
-   coarse-pointer/touch devices where hover does not exist. The buttons
-   carry no inline `display` style — this stylesheet is the single owner of
-   their visibility. */
+/* Directory-picker row manage buttons (rename/delete): always visible —
+   pi#76 dropped the hover-reveal; hover only adjusts their color. */
 .directory-picker-row-manage {
   display: inline-flex;
 }
@@ -1718,6 +1742,72 @@ span.token.table {
 .panel-resize-handle:hover::after,
 .panel-resize-handle:focus-visible::after,
 .panel-resize-handle.is-resizing::after {
+  background: color-mix(in srgb, var(--text-muted) 70%, var(--border));
+}
+/* Polyforge dock resize handle (pi#117): the dock is an overlay anchored
+   right, so the handle straddles its left edge instead of sitting in the
+   flex flow — but it stays a DOM child of the dock so the pi#113 outside-
+   pointerdown dismissal counts it as part of the dock. Same idle-separator
+   language as .panel-resize-handle (the dock's own border). */
+.pf-dock-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 12px;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.pf-dock-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 2px;
+  pointer-events: none;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.pf-dock-resize-handle:hover::after,
+.pf-dock-resize-handle:focus-visible::after,
+.pf-dock-resize-handle.is-resizing::after {
+  background: color-mix(in srgb, var(--text-muted) 70%, var(--border));
+}
+/* Mobile sheet resize handle (pi#120): the bottom sheets (Polyforge,
+   bg-tasks) resize vertically by their top edge. Like the dock handle it
+   straddles the edge (half outside, half inside) but stays a DOM child of
+   the sheet, so it sits above the backdrop — dragging never taps the
+   backdrop (the tap stays the only dismiss gesture). touch-action: none
+   keeps the page from scrolling or pull-to-refresh while the handle is
+   dragged (touch drags are pointer drags here, pi#31). */
+.pf-sheet-resize-handle {
+  position: absolute;
+  top: -7px;
+  left: 0;
+  right: 0;
+  height: 14px;
+  z-index: 1;
+  cursor: row-resize;
+  touch-action: none;
+  outline: none;
+}
+.pf-sheet-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  pointer-events: none;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.pf-sheet-resize-handle:hover::after,
+.pf-sheet-resize-handle:focus-visible::after,
+.pf-sheet-resize-handle.is-resizing::after {
   background: color-mix(in srgb, var(--text-muted) 70%, var(--border));
 }
 .sidebar-section-resize-handle {
@@ -1986,19 +2076,181 @@ span.token.table {
   }
 }
 
-/* ═══ yf-app：窄视口可用底线 ═══
-   桌面优先；窄视口允许降级为简陋单列，但必须可读、可滚动、可操作
-   （spec「部署/UI」Requirement 的响应式底线）。 */
-@media (max-width: 640px) {
-  body {
-    font-size: 15px;
+/* ------------------------------------------------------------------ */
+/* In-tab search (pi#80): floating bar + CSS Custom Highlight painting */
+/* ------------------------------------------------------------------ */
+
+.tab-search-bar {
+  position: absolute;
+  top: 10px;
+  right: 18px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+}
+
+.tab-search-input {
+  width: 180px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+.tab-search-input:focus {
+  border-color: var(--accent);
+}
+
+.tab-search-counter {
+  min-width: 44px;
+  text-align: center;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tab-search-toggle,
+.tab-search-nav,
+.tab-search-close,
+.tab-search-extra {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  cursor: pointer;
+}
+.tab-search-toggle:hover,
+.tab-search-nav:hover:not(:disabled),
+.tab-search-close:hover,
+.tab-search-extra:hover:not(:disabled) {
+  background: var(--bg-selected);
+  color: var(--text);
+}
+.tab-search-toggle-active {
+  background: var(--bg-selected);
+  color: var(--text);
+}
+.tab-search-nav:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tab-search-earlier-note {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 0;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--bg-selected);
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.tab-search-earlier-note:empty {
+  display: none;
+}
+
+/* CSS Custom Highlight API painting (lib/tab-search registers the
+   ranges; browsers without the API degrade to navigation-only). */
+::highlight(pi-tab-search-all) {
+  background-color: rgba(250, 204, 21, 0.35);
+}
+::highlight(pi-tab-search-current) {
+  background-color: rgba(249, 115, 22, 0.75);
+}
+
+/* Session age filter (pi#82): compact numeric field in the session section */
+.settings-age-filter-input {
+  width: 72px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+.settings-age-filter-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Scroll-up history loading (pi#83): sentinel spinner affordance and the
+   fade-in of freshly prepended rows. The fade class is removed by timeout,
+   so removal never re-triggers the animation. */
+.chat-load-earlier-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+@keyframes chat-row-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
   }
-  /* 任何图片都不允许撑破视口宽度。 */
-  img {
-    max-width: 100%;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
-  /* 等宽长文本（user_id / round_id / presign URL）在窄容器内可断行。 */
-  .font-mono {
-    overflow-wrap: anywhere;
+}
+.chat-row-prepended {
+  animation: chat-row-fade-in 160ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-row-prepended {
+    animation: none;
+  }
+}
+
+/* While the software keyboard is up (set by useViewportHeight), only a few
+   hundred pixels remain above it. Hand them to the conversation: collapse the
+   model/controls row and the extension status shelf, and drop the home
+   indicator inset the keyboard already covers. Both come back when the
+   keyboard closes. Phone landscape is wider than the mobile breakpoint but
+   leaves the least room of all, so short touch screens opt in too; tablets
+   keep their controls because the keyboard leaves them enough height. */
+@media (max-width: 640px), (pointer: coarse) and (max-height: 500px) {
+  html[data-keyboard-open] .chat-input-controls,
+  html[data-keyboard-open] .extension-status-shelf {
+    display: none !important;
+  }
+  html[data-keyboard-open] .chat-content {
+    padding-bottom: 0 !important;
+  }
+  html[data-keyboard-open] .chat-input-shell {
+    padding-bottom: 6px !important;
+  }
+}
+
+/* Polyforge step flow graph (pi#114): only the in_progress node's status dot
+   pulses; everything is static under prefers-reduced-motion. */
+.pf-step-node-pulse {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-step-node-pulse {
+    animation: none;
   }
 }

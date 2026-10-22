@@ -2,29 +2,33 @@
 
 ## 永久分叉声明（先读这一段）
 
-**yf-app 是 silgrid/pi-web v0.0.20 的永久分叉（permanent fork），独立产品线。**
+**yf-app 是 silgrid/pi-web 的永久分叉（permanent fork），独立产品线。**
 
-- **不做任何上游跟随合并**：pi-web 上游的后续 commit / 版本表 / release 一律不进入
-  本仓库。仓库里不存在也不得引入任何「从上游合并 / 同步 / cherry-pick」的流程、
-  脚本或入口。
-- 基线之上，上游的 coding-agent 使用面（terminal、文件浏览、git worktree、models
-  配置、agent sessions、PWA/push、移动壳与桌面壳）已全部移除；yf-app 只保留三个
-  用户面：注册/登录/登出、对话工作台、产图读面。
-- 任何把仓库「升级到 pi-web 新版本」的提议都与本声明冲突，直接拒绝。
+- **不做任何持续上游跟随合并**：pi-web 上游的后续 commit / 版本表 / release 一律不
+  自动进入本仓库。仓库里不存在也不得引入任何「从上游持续合并 / 同步」的流程、
+  脚本或入口。当前基线为上游 main commit `2481a70`
+  （`2481a70b5b9ef23cb38847a7bc79101491446ea5`，yingfang#28 2026-10-22 一次性重定基
+  合入）：pi-web 整体形态（AppShell、文件浏览器、聊天窗）随基线保留。
+- 基线之上，terminal、git worktree、models 配置三面板与主机 shell（terminal 面板
+  与 agent 的 bash 工具，运营者也没有）已按 yingfang#28 移除；普通用户只有聊天栏
+  （引导 skill + 生图 workflow）+ 自己的画廊，skills 安装 / plugins / app-update /
+  任意目录浏览 / LLM 配置仅运营者可用。
+- 任何把仓库「持续升级到 pi-web 新版本」的提议都与本声明冲突，直接拒绝。
 
 ## 产品一句话
 
-C 端图像创作工作台：邀请码注册 → 一句话起步 → LLM 引导对话（服务端代理，key 不进
-浏览器，历史仅存 localStorage）→ 按 yingfang 契约下单 → GET 轮询 → presign 读图 →
-勾选定稿（后续 refine 默认 parent）。UI 仅简体中文；桌面优先，窄视口能看即可。
+C 端图像创作工作台：邀请码注册 → user_id+recovery 登录 → 聊天栏引导对话（新对话
+默认进入引导 skill）→ 草案确认 → 按 yingfang 契约下单 → GET-only 轮询到终态 →
+画廊按用户隔离浏览。UI 仅简体中文；桌面优先，窄视口能看即可。
 
 ## 硬纪律
 
 - **不改 yingfang 契约**：`repos/yingfang/docs/api-contract.md` §2 的路由全集是唯一
   对接面；不新增/修改/删除契约端点，不加 SSE/WS、消息持久化、backend 列表端点。
 - 契约错误信封 `{"error":{code,message,details?}}` 按码如实呈现，不吞不改。
-- LLM API key 只存部署环境变量（`YF_LLM_API_KEY` 等），绝不出现在任何发往浏览器的
-  字节中；不用 `NEXT_PUBLIC_` 承载任何密钥。
+- **LLM key 经 UI 通道（仅运营者）配置后存服务端数据根（0600），只写不回显**：保存后
+  连运营者也只看到「已配置」，可覆盖不可读回；key 不进仓、不进日志、不进普通用户
+  的浏览器可见字节；旧 `YF_LLM_*` 环境变量通道已移除，UI 通道是唯一来源。
 - recovery 永不被任何客户端存储持久化；user_id 由 localStorage 记住（`yf.` 前缀）。
 - 后端/模型清单来自打包内静态配置（`config/backends.json`），运行时零列表网络请求。
 
@@ -43,9 +47,13 @@ Build: `npm run build`
 ## 代码地图
 
 ```
-app/page.tsx          对话工作台 + 产图读面（主页面）
-app/login/page.tsx    注册（含 recovery 确认门）/ 登录
-app/api/guide/        服务端 LLM 引导代理（唯一自有 API 路由）
-lib/yf/               yingfang 契约客户端、引导协议、轮询、读面逻辑
-config/backends.json  内置静态后端/模型清单
+app/api/yf/[...path]/route.ts   yingfang 契约同源代理（/api/yf/* → :9701，逐字转发）
+app/api/yf/me/                  当前身份（user_id + operator 判定）
+app/api/yf/llm-config/          单一 LLM 配置通道（仅运营者，key 只写不回显）
+app/api/yf/land/                done 轮落盘画廊（presign → 下载 → 原子写）
+app/api/agent/  app/api/sessions/  聊天栏会话面（pi-web 基线形态）
+lib/yf/               yingfang 契约客户端、引导 skill、草案、workflow、画廊
+config/operators.json  运营者 user_id 名单（只含 user_id，可进仓）
+config/backends.json   内置静态后端/模型清单
+config/guide-skill/    引导技能定义（新对话默认进入）
 ```

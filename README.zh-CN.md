@@ -5,11 +5,14 @@ C 端图像创作工作台。把一个模糊的图像想法，经 LLM 引导对�
 
 ## 永久分叉声明
 
-yf-app 是 **silgrid/pi-web v0.0.20 的永久分叉**（permanent fork），作为独立产品线演进。
-不跟随 pi-web 上游合并（无版本表合并、无同步脚本、无上游合并入口），上游后续变更
-不再进入本仓库。上游的 coding-agent 使用面（terminal、文件浏览、git worktree、
-models 配置、agent sessions）已全部移除，保留的面仅有：注册/登录/登出、对话工作台、
-产图读面。
+yf-app 是 **silgrid/pi-web 的永久分叉**（permanent fork），作为独立产品线演进。
+不跟随 pi-web 上游做持续合并（无版本表合并、无同步脚本、无上游合并入口），上游后续
+变更不自动进入本仓库。当前基线为上游 main commit `2481a70`
+（`2481a70b5b9ef23cb38847a7bc79101491446ea5`，yingfang#28 一次性重定基合入）：
+pi-web 整体形态（AppShell、文件浏览器、聊天窗）随基线保留；terminal、git worktree、
+models 配置三面板与主机 shell（含 agent 的 bash 工具，运营者也没有）已移除。普通
+用户只有聊天栏（引导 skill + 生图 workflow）+ 自己的画廊；skills 安装、plugins、
+app-update、任意目录浏览、LLM 配置仅运营者可用。
 
 ## 使用流程
 

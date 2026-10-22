@@ -2,10 +2,14 @@
 
 ## 永久分叉声明
 
-yf-app 是 **silgrid/pi-web v0.0.20 的永久分叉（permanent fork）**，独立产品线演进：
-不跟随 pi-web 上游合并，无版本表合并、无同步脚本、无上游合并入口；上游后续变更
-不进入本仓库。上游 coding-agent 使用面已全部移除，仅保留注册/登录/登出、对话工作台、
-产图读面三个用户面。
+yf-app 是 **silgrid/pi-web 的永久分叉（permanent fork）**，独立产品线演进：不跟随
+pi-web 上游做版本表合并，仓库内不存在任何持续同步脚本或上游合并入口，上游后续
+变更不自动进入本仓库。**基线钉在上游 main commit `2481a70`
+（`2481a70b5b9ef23cb38847a7bc79101491446ea5`，2026-10-22 一次性重定基合入，
+yingfang#28）**：pi-web 的整体形态（AppShell、文件浏览器、聊天窗等）随该基线保留
+在产品里；terminal、git worktree、models 配置三面板与主机 shell（terminal 面板与
+agent 的 bash 工具，运营者也没有）按 yingfang#28 的删除面移除。上游 tag 不推
+origin，版本留在 yf-app 0.0.1 纪元，本仓不发版。
 
 ## Quick Start
 
@@ -16,36 +20,48 @@ npm run dev   # 127.0.0.1:30141
 
 Typecheck: `node_modules/.bin/tsc --noEmit`  
 Lint: `npm run lint`  
-Test: `npm test`  
-Build: `npm run build`
+Test: `npm test`
 
-## Architecture
+**Never run `next build` during dev**: it pollutes `.next/` and breaks `npm run dev`
+(upstream engineering discipline, inherited with the rebase). `next dev` runs
+Turbopack; never fall back to `next dev --webpack`.
 
-```
-Browser                Next.js Server                yingfang API
-  │                        │                             │
-  ├─ POST /api/register ───▶───────── 同源转发 ────────────▶ 邀请码注册
-  ├─ POST /api/login ──────▶───────── 同源转发 ────────────▶ yf_session cookie
-  ├─ POST /api/guide ──────▶ 服务端持 key 调 LLM          │
-  │◀── reply + draft ───────│   （对话历史仅存浏览器       │
-  │                         │     localStorage）          │
-  ├─ POST /api/convs/... ──▶───────── 同源转发 ────────────▶ 下单（SubmitRequest）
-  ├─ GET /api/rounds/{id} ─▶───────── 同源转发 ────────────▶ 轮询轮状态
-  ├─ POST .../presign ─────▶───────── 同源转发 ────────────▶ 预签名图片 URL
-```
+### Dev server troubleshooting (inherited from the rebase)
 
-- yf-app 自己的服务端面只有一个：`app/api/guide/`（LLM 引导代理）。其余 `/api/*`
-  全部是同源反向代理转发给 yingfang 的契约端点（`docs/deploy.md`）。
-- 契约客户端与全部产品逻辑在 `lib/yf/`；后端/模型清单是打包内静态配置
-  （`config/backends.json`）。
+- First run `lsof -nP -iTCP:30141 -sTCP:LISTEN` and reuse a healthy process. A second
+  `next dev` on another port is no workaround: both contend for `.next/dev/lock`.
+- `next dev` may append a generated `BEGIN:nextjs-agent-rules` block to `AGENTS.md`.
+  It is tooling output: check `git status` and keep it out of unrelated commits.
+
+## Architecture（重定基后的形态）
+
+- **整体形态**：pi-web 的 AppShell / 文件浏览器 / 聊天窗（ChatWindow / ChatInput /
+  MessageView / SSE）随基线 `2481a70` 保留；文件浏览器支持图片/视频预览。
+- **yingfang 契约面**：整体挂载在 yf-app 自己的 `/api/yf/*` 前缀下，由
+  `app/api/yf/[...path]/route.ts` 逐字代理到 yingfang（cookie/Set-Cookie/错误信封
+  透传）；yingfang 仓零改动，契约权威在 `docs/api-contract.md` §2。
+- **账号面**：邀请码注册（展示生成的 `user_id`、确认已保存 recovery）、
+  `user_id`+`recovery` 登录（`yf_session`）；recovery 永不持久化、无找回通道；
+  pi-web 的口令登录（`PI_WEB_PASSWORD`）不作为本产品登录方式。
+- **身份**：login 经过 `/api/yf` 代理时服务端落 session index
+  （sha256(token)→user_id）；运营者 = 服务端 `config/operators.json` 的 user_id
+  名单（与 `YF_OPERATOR_USER_IDS` 取并集）。
 
 ## 硬纪律
 
-- 不改 yingfang 契约（`repos/yingfang/docs/api-contract.md` §2）。
-- LLM key 只在服务端环境变量；recovery 永不持久化；历史仅存 localStorage（`yf.` 前缀）。
+- 不改 yingfang 契约（`repos/yingfang/docs/api-contract.md` §2）；yingfang 仓零改动。
+- **LLM key 经 UI 通道（仅运营者）配置后存服务端数据根（0600），只写不回显**：
+  保存后连运营者也只看到「已配置」，可覆盖不可读回；key 不进仓、不进日志、不进
+  普通用户的浏览器可见字节；旧 `YF_LLM_*` 环境变量通道已移除，UI 通道是唯一来源。
+- **使用面边界**：主机 shell（terminal 面板与 agent 的 bash 工具）已对所有人移除
+  （运营者也没有）；普通用户只有聊天栏（引导 skill + 生图 workflow，无写文件工具）
+  + 自己的画廊；skills 安装、plugins、app-update、任意目录浏览、LLM 配置仅运营者
+  可用（普通用户直访 403）。
+- recovery 永不持久化于客户端任何存储；user_id 由 localStorage 记住（`yf.` 前缀）。
 - UI 仅简体中文；桌面优先，窄视口可用即可。
-- Next.js 可能在 `AGENTS.md` 追加生成的 `BEGIN:nextjs-agent-rules` 块；那是工具输出，
-  不要混进无关提交。
+- 数据根 `YF_DATA_DIR`（缺省 `~/.local/share/yf-app`）：画廊
+  `gallery/<user_id>/<conv_id>/<round_id>/`、用户会话目录 `users/<user_id>/`、
+  LLM 配置 `llm/config.json`——全部不进 git。
 
 <!-- BEGIN:nextjs-agent-rules -->
 

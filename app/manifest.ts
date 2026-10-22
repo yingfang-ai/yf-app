@@ -3,16 +3,16 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "yf-app",
-    short_name: "yf-app",
-    description: "yf-app — C 端图像创作工作台：一句话起步，引导对话，产图勾选定稿",
+    name: "Pi Web",
+    short_name: "Pi Web",
+    description: "Local web interface for the pi coding agent",
     start_url: "/",
     scope: "/",
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#1a1a1a",
-    categories: ["productivity"],
-    lang: "zh-CN",
+    categories: ["developer", "productivity"],
+    lang: "en",
     icons: [
       {
         src: "/icons/icon-192.png",
