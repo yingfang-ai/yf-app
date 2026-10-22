@@ -93,7 +93,6 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [pushRegistering, setPushRegistering] = useState(false);
   const [pushStatus, setPushStatus] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
-  const [webAuthEnabled, setWebAuthEnabled] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
   // Session filter (wi pi#49 R1): the editor is line-per-rule. The initial
@@ -119,19 +118,16 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
 
   useEffect(() => {
     setThinkingExpanded(isThinkingExpandedByDefault());
-    void fetch("/api/web-auth")
-      .then((response) => response.ok ? response.json() : null)
-      .then((data: { enabled?: boolean } | null) => setWebAuthEnabled(data?.enabled === true))
-      .catch(() => {});
   }, []);
 
   const logOut = async () => {
     setLoggingOut(true);
     setLogoutError("");
     try {
-      const response = await fetch("/api/web-auth", { method: "DELETE" });
+      // yf 会话登出：契约端点经 /api/yf 代理，cookie 由代理回传清除（Max-Age=0）。
+      const response = await fetch("/api/yf/logout", { method: "POST" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      window.location.replace("/login");
+      window.location.replace("/login?logout=1");
     } catch {
       setLogoutError(t("auth.logoutFailed"));
     } finally {
@@ -505,8 +501,7 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
         </div>
       </section>
 
-      {webAuthEnabled && (
-        <section className="settings-general-section">
+      <section className="settings-general-section">
           <ConfigButton variant="secondary" disabled={loggingOut} onClick={() => void logOut()}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
@@ -515,7 +510,6 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
           </ConfigButton>
           {logoutError && <p role="alert" className="settings-general-error">{logoutError}</p>}
         </section>
-      )}
     </div>
   );
 }

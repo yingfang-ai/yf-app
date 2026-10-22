@@ -1,29 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
-import {
-  getAuthRetryAfterMs,
-  recordAuthFailure,
-  retryAfterSeconds,
-} from "@/lib/auth-throttle";
-import {
-  isApiRequestAllowed,
-  isApiRequestHostAllowed,
-} from "@/lib/request-security";
-import {
-  isValidWebSessionToken,
-  isValidBasicAuthorization,
-  isWebPasswordEnabled,
-  PI_WEB_SESSION_COOKIE,
-} from "@/lib/web-auth";
+import { isApiRequestAllowed, isApiRequestHostAllowed } from "@/lib/request-security";
+import { yfSessionTokenFromCookie } from "@/lib/yf/session-index";
 
-function tooManyAttempts(retryAfterMs: number): NextResponse {
-  return new NextResponse("Too many failed attempts", {
-    status: 429,
-    headers: {
-      "Cache-Control": "no-store",
-      "Retry-After": String(retryAfterSeconds(retryAfterMs)),
-    },
-  });
-}
+/**
+ * yf 门（plan step 4，spec R7）：`yf_session` cookie 在场放行、不在场跳登录页。
+ * 上游 request-security 逻辑保留（host/origin 校验）。
+ *
+ * - `/api/yf/register`、`/api/yf/login` 是 pre-auth 端点：对匿名可达（鉴权由
+ *   契约与 yf-app 路由自己管——yf 门只管页面）。
+ * - 其余 `/api/*` 匿名 → 401；页面匿名 → 跳 `/login`（带 next 回跳参数）。
+ * - pi-web 的口令登录（PI_WEB_PASSWORD）不再是登录方式：web-auth 族已删。
+ */
+
+// pre-auth 端点（契约 §2.1–2.2）：注册与登录本身不需要会话。
+const PRE_AUTH_API = /^\/api\/yf\/(register|login)$/;
 
 export function proxy(request: NextRequest) {
   const isApiRequest = request.nextUrl.pathname === "/api"
@@ -39,53 +29,30 @@ export function proxy(request: NextRequest) {
     return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
   }
 
-  const password = process.env.PI_WEB_PASSWORD;
-  if (!isWebPasswordEnabled(password)) {
-    if (request.nextUrl.pathname === "/login") {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+  const token = yfSessionTokenFromCookie(request.headers.get("cookie"));
+  if (token) {
+    // 会话在场：放行。会话有效性（index 命中/过期）由各路由自负（me/契约 401）。
     return NextResponse.next();
   }
 
-  let authenticated = isValidWebSessionToken(request.cookies.get(PI_WEB_SESSION_COOKIE)?.value, password);
-  const authorization = isApiRequest ? request.headers.get("authorization") : null;
-  if (!authenticated && authorization && /^Basic\s/i.test(authorization)) {
-    // Every Basic header is a password guess, so it shares the login form's
-    // throttle; otherwise any API path (or GET /api/web-auth) answers guesses
-    // at full speed. While blocked even the right password is refused, or the
-    // answer would leak. A success does not reset the counter: Basic clients
-    // authenticate on every request, and each reset would hand an interleaved
-    // guesser a fresh short block.
-    const retryAfterMs = getAuthRetryAfterMs();
-    if (retryAfterMs > 0) return tooManyAttempts(retryAfterMs);
-    authenticated = isValidBasicAuthorization(authorization, password);
-    if (!authenticated) recordAuthFailure();
-  }
-  if (request.nextUrl.pathname === "/login") {
-    return authenticated
-      ? NextResponse.redirect(new URL("/", request.url))
-      : NextResponse.next();
-  }
-  if (request.nextUrl.pathname === "/api/web-auth") return NextResponse.next();
-
-  if (!authenticated) {
-    if (!isApiRequest) {
-      const loginUrl = new URL("/login", request.url);
-      if (request.nextUrl.search) {
-        loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-      }
-      return NextResponse.redirect(loginUrl);
+  if (isApiRequest) {
+    if (PRE_AUTH_API.test(request.nextUrl.pathname)) {
+      return NextResponse.next();
     }
     return new NextResponse("Authentication required", {
       status: 401,
-      headers: {
-        "Cache-Control": "no-store",
-        "WWW-Authenticate": 'Basic realm="Pi Web", charset="UTF-8"',
-      },
+      headers: { "Cache-Control": "no-store" },
     });
   }
 
-  return NextResponse.next();
+  if (request.nextUrl.pathname === "/login") {
+    return NextResponse.next();
+  }
+  const loginUrl = new URL("/login", request.url);
+  if (request.nextUrl.pathname !== "/" || request.nextUrl.search) {
+    loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+  }
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = { matcher: ["/", "/login", "/api/:path*"] };
