@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { yfDataRoot } from "@/lib/yf/data-root";
+import { upstreamBase } from "@/lib/yf/upstream";
 import {
   deleteSessionIndex,
   writeSessionIndex,
@@ -17,8 +18,6 @@ import {
  *
  * 注册/登录是 pre-auth 端点：本路由对匿名可达（鉴权由契约与 yf-app 路由自己管）。
  */
-const DEFAULT_UPSTREAM = "http://127.0.0.1:9701";
-
 // 逐字转发时不该由本服务代言的头（hop-by-hop / 传输层）。
 const DROPPED_REQUEST_HEADERS = new Set([
   "host",
@@ -32,10 +31,6 @@ const DROPPED_REQUEST_HEADERS = new Set([
   "te",
   "trailer",
 ]);
-
-function upstreamBase(): string {
-  return (process.env.YF_API_UPSTREAM ?? DEFAULT_UPSTREAM).replace(/\/+$/, "");
-}
 
 async function forward(request: NextRequest, path: string): Promise<Response> {
   const target = new URL(`${upstreamBase()}/api/${path}${new URL(request.url).search}`);

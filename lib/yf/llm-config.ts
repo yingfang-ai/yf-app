@@ -7,7 +7,7 @@ import { writePrivateFileAtomicSync } from "../atomic-file";
 /**
  * 单一 LLM 配置通道（plan step 6，spec R3）：全站共用一份配置，仅运营者可看可改
  * （权限由 /api/yf/llm-config 路由守卫管）；key 只写不回显——GET 永不返回 key，
- * 保存后界面只显示「已配置」。旧 `YF_LLM_*` 环境变量通道已移除（step 2），
+ * 保存后界面只显示「已配置」。旧的 LLM 环境变量通道已移除（step 2），
  * 本通道是唯一来源。
  *
  * 存储：`<数据根>/llm/config.json`（0600、原子写、不进 git、不进日志、不进构建产物）。
