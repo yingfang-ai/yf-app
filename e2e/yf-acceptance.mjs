@@ -12,6 +12,18 @@
 // Implementation steps MUST NOT delete it while cleaning up the legacy pi-web
 // e2e scenarios — the cleanup targets the old runner/checks, not this bar.
 //
+// yingfang#28 (wi_EAgzJttOcVUv) e2e-author 定点更新（spec R17，断言不放松）：
+// - S-E2E-24: 永久分叉声明的基线号从 v0.0.20 更新为上游 main commit 2481a70
+//   （R1：重定基钉 2481a70，写法含 main commit 号）。
+// - S-E2E-01a/01b: 删除清单从「全部 coding-agent 面」改为本票实际删除面
+//   （R3 的 terminal/git worktree/models 配置面板 + R4 的主机 shell/bash 面
+//   + 单一运营者 LLM 通道下无消费者的 provider OAuth/web-auth 登录族）——
+//   重定基后 skills/plugins/cwd/files/sessions 等 coding-agent 面合法回归
+//   （R5：仅运营者可用，不删），旧清单会在新树上误红。路由族从基线树
+//   2481a70 实查推出（spec A5），不凭空列举。
+// 其余断言（S-E2E-02/22/25）一条未动。四个新形态面的行为 e2e 在
+// e2e/yf-behavior.mjs（本票新增，跑在测试内契约桩上）。
+//
 // Run (from repos/yf-app, after `npm ci`):
 //   node e2e/yf-acceptance.mjs
 //
@@ -68,21 +80,29 @@ async function main() {
   // Static checks (no server needed)
   // -------------------------------------------------------------------------
 
-  // S-E2E-01b — spec AC1: coding-agent API route directories must not exist.
-  // Frozen list of the pre-implementation tree's app/api families; spec says
-  // the terminal / file browsing / git worktree / models config / agent
-  // sessions faces must be removed, and each of these directories is a
-  // direct-URL surface that exists today.
-  const codingAgentApiFamilies = [
-    "agent", "app-update", "auth", "cwd", "default-cwd", "file-index", "files",
-    "fs-manage", "git", "home", "models", "models-config", "plugins",
-    "project-trust", "provider-usage", "push", "sessions", "skills", "subagents",
-    "terminal", "tools", "web-auth", "worktrees",
+  // S-E2E-01b — yingfang#28 spec R3/R4 (R17 定点更新): the DELETED faces' API
+  // route directories must not exist in the rebased product. Change reason:
+  // #27's list ("all coding-agent faces") would fail after the rebase — the
+  // upstream 2481a70 tree legitimately brings skills/plugins/cwd/files/git/
+  // sessions/agent back (R5: operator-only, NOT deleted) — so the frozen list
+  // is now exactly the spec's deletion set: terminal + git worktree + models
+  // 配置 panels (R3) plus the host-shell/bash face (R4, owner 拍板移除,
+  // operators included) and the provider-OAuth/web-auth login families that
+  // the single operator LLM channel (R3) leaves without consumers. Families
+  // re-derived from the baseline tree 2481a70 (spec A5 实查), not invented.
+  const deletedApiFamilies = [
+    "auth", "models", "models-config", "terminal", "web-auth", "worktrees",
   ];
-  await record("S-E2E-01b", "coding-agent API 路由目录物理不存在", () => {
-    const present = codingAgentApiFamilies.filter((family) => existsSync(join(root, "app", "api", family)));
+  const deletedApiNested = [
+    join(root, "app", "api", "agent", "[id]", "bash-output"),
+  ];
+  await record("S-E2E-01b", "删除面 API 路由目录物理不存在（terminal/worktree/models 配置/shell）", () => {
+    const present = [
+      ...deletedApiFamilies.filter((family) => existsSync(join(root, "app", "api", family))),
+      ...deletedApiNested.filter((nested) => existsSync(nested)),
+    ];
     if (present.length > 0) {
-      throw new Error(`coding-agent route families still present: ${present.join(", ")}`);
+      throw new Error(`deleted route families still present: ${present.join(", ")}`);
     }
   });
 
@@ -102,9 +122,12 @@ async function main() {
     }
   });
 
-  // S-E2E-24 — spec AC15: repo docs must declare the permanent fork (baseline
-  // silgrid/pi-web v0.0.20) and the package must not carry the upstream
-  // identity.
+  // S-E2E-24 — yingfang#28 spec R1 (R17 定点更新): repo docs must declare the
+  // permanent fork with the NEW baseline — upstream silgrid/pi-web main
+  // commit 2481a70, written with the main commit number — and the package
+  // must not carry the upstream identity. Change reason: #28's one-shot
+  // rebase pins the fork baseline at 2481a70; v0.0.20 is no longer the
+  // declared baseline. Assertion otherwise unchanged (not relaxed).
   await record("S-E2E-24", "永久分叉载明且无上游包身份", () => {
     const candidates = [
       join(root, "README.md"), join(root, "CLAUDE.md"), join(root, "AGENTS.md"),
@@ -119,10 +142,10 @@ async function main() {
     const found = candidates.filter((path) => existsSync(path));
     const declares = found.some((path) => {
       const text = readFileSync(path, "utf8");
-      return /永久分叉|permanent fork/i.test(text) && /v0\.0\.20/.test(text);
+      return /永久分叉|permanent fork/i.test(text) && /2481a70/.test(text);
     });
     if (!declares) {
-      throw new Error(`no repo doc declares the permanent fork with baseline v0.0.20 (searched: ${found.map(basename).join(", ")})`);
+      throw new Error(`no repo doc declares the permanent fork with baseline 2481a70 (searched: ${found.map(basename).join(", ")})`);
     }
     const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
     if (pkg.name === "@silgrid/pi-web") {
@@ -179,9 +202,8 @@ async function main() {
     server.stdout.pipe(serverLog, { end: false });
     server.stderr.pipe(serverLog, { end: false });
 
-    // Readiness: any HTTP response on a known path means the server is up.
-    // Pre-implementation /api/sessions answers 200; post-implementation it
-    // 404s — either way a response means the server is listening. If the
+    // Readiness: any HTTP response on a known path means the server is up
+    // (any status — 200, 403, 404 — means the listener is answering). If the
     // process dies first (e.g. reserved port), retry on a fresh port.
     const deadline = Date.now() + 240_000;
     let responded = false;
@@ -209,51 +231,33 @@ async function main() {
       });
     }
 
-    // S-E2E-01a — spec AC1 / spec Scenario "coding-agent 面不可达": every
-    // coding-agent direct URL that exists in the pre-implementation tree must
-    // be gone (404). Frozen probe list taken from today's app/api route leaves.
-    const codingAgentProbes = [
-      ["GET", "/api/sessions"],
-      ["POST", "/api/agent/new", { type: "get_state" }],
-      ["GET", "/api/agent/running"],
-      ["GET", "/api/terminal"],
-      ["POST", "/api/terminal", {}],
-      ["GET", "/api/files/package.json?type=read"],
-      ["POST", "/api/fs-manage", {}],
-      ["POST", "/api/git/status", {}],
+    // S-E2E-01a — yingfang#28 spec R3/R4 (R17 定点更新): every direct URL of a
+    // DELETED face must be gone (404). Change reason: same as S-E2E-01b —
+    // #27's "all coding-agent URLs" list would fail post-rebase because the
+    // upstream routes it probed (skills/plugins/cwd/files/sessions/…) come
+    // back as operator-only surfaces (R5); this list is the spec's deletion
+    // set plus the bash-output route of the agent bash tool (R4),
+    // re-derived from the baseline tree 2481a70 (spec A5 实查).
+    const deletedFaceProbes = [
+      ["GET", "/api/terminal"], ["POST", "/api/terminal", {}],
       ["GET", "/api/worktrees"],
-      ["GET", "/api/models"],
-      ["GET", "/api/models/enabled"],
-      ["POST", "/api/models/refresh", {}],
-      ["GET", "/api/models-config"],
-      ["POST", "/api/models-config/discover", {}],
-      ["GET", "/api/plugins"],
-      ["GET", "/api/skills"],
-      ["GET", "/api/subagents/profiles"],
-      ["GET", "/api/tools/settings"],
-      ["GET", "/api/cwd"],
-      ["POST", "/api/cwd/validate", {}],
-      ["GET", "/api/default-cwd"],
-      ["GET", "/api/file-index"],
-      ["GET", "/api/home"],
-      ["POST", "/api/project-trust", {}],
-      ["POST", "/api/provider-usage/query", {}],
-      ["GET", "/api/push/config"],
-      ["POST", "/api/push/subscribe", {}],
-      ["GET", "/api/app-update"],
+      ["GET", "/api/models"], ["GET", "/api/models/default"],
+      ["GET", "/api/models/enabled"], ["POST", "/api/models/refresh", {}],
+      ["GET", "/api/models-config"], ["POST", "/api/models-config/discover", {}],
       ["GET", "/api/auth/providers"],
       ["GET", "/api/web-auth"],
+      ["POST", "/api/agent/e2e01/bash-output", {}],
     ];
-    await record("S-E2E-01a", "coding-agent API 直连 URL 全部 404", async () => {
+    await record("S-E2E-01a", "删除面直连 URL 全部 404（含 shell/bash 面）", async () => {
       const alive = [];
-      for (const [method, path, body] of codingAgentProbes) {
+      for (const [method, path, body] of deletedFaceProbes) {
         const response = await request(method, path, body);
         if (response.status !== 404) {
           alive.push(`${method} ${path} -> ${response.status}`);
         }
       }
       if (alive.length > 0) {
-        throw new Error(`coding-agent endpoints still reachable:\n  ${alive.join("\n  ")}`);
+        throw new Error(`deleted-face endpoints still reachable:\n  ${alive.join("\n  ")}`);
       }
     });
 
@@ -270,7 +274,13 @@ async function main() {
       }
     });
   } finally {
+    // Graceful SIGTERM first, then escalate: a next dev that survives SIGTERM
+    // keeps holding .next/dev/lock and blocks every later e2e run in this
+    // checkout (observed on this suite's baseline run).
     server?.kill("SIGTERM");
+    const stopDeadline = Date.now() + 5_000;
+    while (server && server.exitCode === null && Date.now() < stopDeadline) await delay(100);
+    if (server && server.exitCode === null) server.kill("SIGKILL");
     rmSync(agentDir, { recursive: true, force: true });
   }
 
