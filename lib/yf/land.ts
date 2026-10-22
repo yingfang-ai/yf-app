@@ -7,7 +7,7 @@ import { galleryRoundDir, imageExtension, isHex32, landedFileFor } from "./galle
  * 画廊落盘（plan step 13，R9/R10）：round 到 done 后，服务端用**登录用户自己的
  * cookie** 向契约取 presign、下载图片、原子写进该用户的画廊。无服务端常驻状态
  * （D6）：幂等——已落的序号跳过，重放/重启恢复都靠再调一次。非 done 不落文件。
- * 返回 `landed` = 该轮此刻画廊里的张数；契约错误（别人的轮 → 404 反枚举）原样透传。
+ * 返回 `landed` = 该轮此刻画廊里的张数、`files` = 它们的绝对路径（聊天里经 files API 展示，只在该用户自己的画廊根内）；契约错误（别人的轮 → 404 反枚举）原样透传。
  */
 export interface LandDeps {
   upstream: string;
@@ -18,7 +18,7 @@ export interface LandDeps {
 }
 
 export type LandResult =
-  | { ok: true; landed: number }
+  | { ok: true; landed: number; files: string[] }
   | { ok: false; status: number; body: string };
 
 async function contract(deps: LandDeps, path: string, method: "GET" | "POST"): Promise<Response> {
@@ -45,7 +45,7 @@ export async function landRound(roundId: string, deps: LandDeps): Promise<LandRe
   const roundText = await roundResponse.text();
   if (roundResponse.status !== 200) return passthrough(roundResponse, roundText);
   const round = JSON.parse(roundText) as { state?: string; conv_id?: unknown; n?: unknown };
-  if (round.state !== "done") return { ok: true, landed: 0 };
+  if (round.state !== "done") return { ok: true, landed: 0, files: [] };
   if (!isHex32(round.conv_id) || !Number.isInteger(round.n) || (round.n as number) < 0) {
     return {
       ok: false,
@@ -56,10 +56,11 @@ export async function landRound(roundId: string, deps: LandDeps): Promise<LandRe
 
   const dir = galleryRoundDir(deps.userId, round.conv_id, roundId, deps.dataRoot);
   const count = round.n as number;
-  let landed = 0;
+  const files: string[] = [];
   for (let idx = 0; idx < count; idx += 1) {
-    if (landedFileFor(dir, idx)) {
-      landed += 1;
+    const existing = landedFileFor(dir, idx);
+    if (existing) {
+      files.push(join(dir, existing));
       continue;
     }
     const presign = await contract(deps, `rounds/${roundId}/images/${idx}/0/presign`, "POST");
@@ -92,7 +93,7 @@ export async function landRound(roundId: string, deps: LandDeps): Promise<LandRe
     } finally {
       try { unlinkSync(tempPath); } catch { /* 已改名或不存在 */ }
     }
-    landed += 1;
+    files.push(finalPath);
   }
-  return { ok: true, landed };
+  return { ok: true, landed: files.length, files };
 }

@@ -34,7 +34,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       userId: identity.userId,
       dataRoot: yfDataRoot(),
     });
-    if (result.ok) return NextResponse.json({ landed: result.landed });
+    if (result.ok) return NextResponse.json({ landed: result.landed, files: result.files });
     return new NextResponse(result.body, {
       status: result.status,
       headers: { "Content-Type": "application/json; charset=utf-8" },

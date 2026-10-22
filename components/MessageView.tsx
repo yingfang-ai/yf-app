@@ -1,5 +1,7 @@
 "use client";
 
+import { DraftConfirmCard } from "./yf/DraftConfirmCard";
+import { extractDraft } from "@/lib/yf/draft";
 import { memo, useState, useRef, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import { MarkdownBody } from "./MarkdownBody";
@@ -977,7 +979,22 @@ function AssistantMessageView({
 
 function BlockView({ block, searchTarget, toolResults, isStreaming, streamingDuration, toolCallDurations, cwd, onOpenFile, onOpenSession, sessionId, entryId, blockIndex }: { block: AssistantContentBlock; searchTarget?: boolean; toolResults?: Map<string, ToolResultMessage>; isStreaming?: boolean; streamingDuration?: number; toolCallDurations?: Map<string, number>; cwd?: string; onOpenFile?: (filePath: string, page?: number) => void; onOpenSession?: (sessionId: string) => void; sessionId?: string; entryId?: string; blockIndex: number }) {
   if (block.type === "text") {
-    return <div data-message-text data-search-target={searchTarget || undefined}><TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} /></div>;
+    const text = (block as TextContent).text;
+    // 引导 skill 的草案块（yingfang#28 R8/R9）：流式结束后在文本下方给确认卡；
+    // 未经用户点「确认下单」不提交任何东西。
+    const draftParse = !isStreaming && text.includes("yf-draft") ? extractDraft(text) : null;
+    return (
+      <div data-message-text data-search-target={searchTarget || undefined}>
+        <TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} />
+        {draftParse?.ok ? (
+          <DraftConfirmCard
+            draft={draftParse.draft}
+            storageKey={`${sessionId ?? "s"}:${entryId ?? "e"}:${blockIndex}`}
+            onOpenFile={onOpenFile}
+          />
+        ) : null}
+      </div>
+    );
   }
   if (block.type === "thinking") {
     return <ThinkingBlock block={block as ThinkingContent} duration={streamingDuration} sessionId={sessionId} entryId={entryId} blockIndex={blockIndex} />;
