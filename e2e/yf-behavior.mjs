@@ -31,7 +31,7 @@ import {
   createWriteStream, existsSync, mkdirSync, mkdtempSync, readdirSync,
   readFileSync, rmSync, statSync,
 } from "node:fs";
-import { createServer } from "node:net";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
