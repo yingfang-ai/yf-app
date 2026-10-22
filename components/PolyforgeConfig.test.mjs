@@ -97,7 +97,7 @@ test("the panel hosts the section without a project and re-detects on every open
 
 test("the install command and every section string exist in all three locales", async () => {
   const installNeedles = ["tools/install.sh", "raw.githubusercontent.com"];
-  for (const locale of ["en", "zh-CN", "zh-TW"]) {
+  for (const locale of ["zh-CN"]) {
     const text = await readFile(new URL(`../lib/i18n/messages/${locale}.ts`, import.meta.url), "utf8");
     for (const key of [
       "polyforge.settings.notInstalled",

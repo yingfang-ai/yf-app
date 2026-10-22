@@ -63,7 +63,7 @@ test("previews the first thinking line and reveals the full text with the saved 
       assert.match(html, new RegExp(`aria-expanded="${expanded}"`));
       assert.equal((html.match(/>[^<]*Independent reasoning[^<]*</g) ?? []).length, 1);
       assert.equal(html.includes("Detailed second line."), expanded);
-      assert.match(html, /aria-label="Thinking: /);
+      assert.match(html, /aria-label="思考: /);
       assert.match(html, /3s/);
     }
   } finally {
@@ -122,7 +122,7 @@ test("keeps streamed tool input out of collapsed markup while counting it", () =
   }, { isStreaming: true });
 
   assert.match(html, /write/);
-  assert.match(html, /Generating parameters/);
+  assert.match(html, /正在生成参数/);
   assert.doesNotMatch(html, /secret-stream-fragment/);
   assert.equal(getToolCallInputText(block), block.rawInput);
   assert.equal(getTokenEstimateText(block), block.rawInput);
@@ -166,7 +166,7 @@ test("renders subagents as standard tool calls with only an extra session button
   assert.match(html, /border:1px solid rgba\(34,197,94,0\.25\)/);
   assert.match(html, />Agent</);
   assert.match(html, />Explore</);
-  assert.match(html, /aria-label="Open sub-agent session"/);
+  assert.match(html, /aria-label="打开子代理会话"/);
   assert.doesNotMatch(html, />completed</);
   assert.doesNotMatch(html, />Find parser</);
 
@@ -215,8 +215,8 @@ test("renders a truncation notice for stopReason length", () => {
   });
 
   assert.match(html, /role="alert"/);
-  assert.match(html, /output limit was reached before an answer/i);
-  assert.doesNotMatch(html, /follow-up/i);
+  assert.match(html, /输出在生成正文前就达到了上限/);
+  assert.doesNotMatch(html, /发送一条后续消息/);
 });
 
 test("keeps the follow-up hint when a truncated response already has text", () => {
@@ -229,7 +229,7 @@ test("keeps the follow-up hint when a truncated response already has text", () =
   });
 
   assert.match(html, /Partial answer/);
-  assert.match(html, /follow-up/i);
+  assert.match(html, /发送一条后续消息/);
   assert.doesNotMatch(html, /Compact context/);
 });
 
@@ -246,7 +246,7 @@ test("offers compaction on an unanswered truncation and keeps its error with the
     compactError: "Summarization failed: generation hit the token cap",
   });
 
-  assert.match(html, /Compact context/);
+  assert.match(html, /压缩上下文/);
   assert.match(html, /generation hit the token cap/);
   assert.equal(compacted, 0);
 });
@@ -365,7 +365,7 @@ test("renders user-message images as buttons that open a larger preview", () => 
     timestamp: Date.now(),
   });
 
-  assert.match(html, /<button[^>]+aria-label="Preview image"[^>]*>/);
+  assert.match(html, /<button[^>]+aria-label="预览图片"[^>]*>/);
   assert.match(html, /<img[^>]+src="data:image\/png;base64,YWJj"/);
 });
 
@@ -406,7 +406,7 @@ test("renders custom-message images as buttons that open a larger preview", () =
     timestamp: Date.now(),
   });
 
-  assert.match(html, /<button[^>]+aria-label="Preview image"[^>]*>/);
+  assert.match(html, /<button[^>]+aria-label="预览图片"[^>]*>/);
   assert.match(html, /<img[^>]+src="data:image\/png;base64,YWJj"/);
 });
 
@@ -432,7 +432,7 @@ test("shows tool-result images while the tool details stay collapsed", () => {
     content: [block],
   }, { toolResults: new Map([[block.toolCallId, result]]) });
 
-  assert.match(html, /<button[^>]+aria-label="Preview image"[^>]*>/);
+  assert.match(html, /<button[^>]+aria-label="预览图片"[^>]*>/);
   assert.match(html, /<img[^>]+src="data:image\/png;base64,YWJj"/);
   assert.doesNotMatch(html, /captured-1280x720/);
   assert.doesNotMatch(html, /"tabId"/);
@@ -449,9 +449,9 @@ test("uses the unanswered truncation notice for an empty length reply", () => {
     stopReason: "length",
   });
 
-  assert.match(html, /output limit was reached before an answer/i);
-  assert.match(html, /nearly full context/i);
-  assert.doesNotMatch(html, /follow-up/i);
+  assert.match(html, /输出在生成正文前就达到了上限/);
+  assert.match(html, /接近占满的上下文/);
+  assert.doesNotMatch(html, /发送一条后续消息/);
 });
 
 const { setToolCallExpanded } = await jiti.import("@/lib/tool-call-expansion");
@@ -492,7 +492,7 @@ test("collapses a codemode call to its first script line and call count", (t) =>
   const text = textOf(html);
   assert.match(text, /codemode/);
   assert.match(text, /const files = await tools\.ls\(\{ path: "\." \}\);/);
-  assert.match(text, /2 calls/);
+  assert.match(text, /2 次调用/);
   assert.doesNotMatch(text, /@options/);
   assert.doesNotMatch(text, /"code"/);
   assert.doesNotMatch(text, /Tool calls/);
@@ -529,15 +529,15 @@ test("expands a codemode call into its script, its calls, and the output without
   assert.match(html, /markdown-code-lang">javascript</);
   assert.match(text, /\/\/ @options: \{"timeoutMs": 5000\}/);
   assert.match(text, /return files\.length;/);
-  assert.match(text, /Tool calls/);
-  assert.match(text, /Show 5 earlier calls/);
+  assert.match(text, /工具调用/);
+  assert.match(text, /显示更早的 5 次调用/);
   // The newest 20 of 25 calls are listed; the 5 oldest are folded.
   assert.doesNotMatch(text, /"file-5"/);
   assert.match(text, /"file-6"/);
   assert.match(text, /bash\{"path":"file-23"\}1\.5s/);
   assert.match(text, /exit code 2/);
-  assert.match(html, /aria-label="Failed"/);
-  assert.match(text, /Model calls: \$0\.01/);
+  assert.match(html, /aria-label="失败"/);
+  assert.match(text, /模型调用：\$0\.01/);
   assert.match(text, /Script error:\nError: exit code 2/);
   assert.doesNotMatch(text, /Wall time/);
   assert.doesNotMatch(text, /"code":/);
@@ -557,9 +557,9 @@ test("shows a running script's calls without an empty output", (t) => {
     },
   });
   const text = textOf(html);
-  assert.match(text, /201 calls/);
-  assert.match(text, /200 earlier calls not shown/);
-  assert.match(html, /aria-label="Running"/);
+  assert.match(text, /201 次调用/);
+  assert.match(text, /更早的 200 次调用未显示/);
+  assert.match(html, /aria-label="运行中"/);
   assert.doesNotMatch(text, /No output/i);
 });
 
@@ -568,7 +568,7 @@ test("keeps the generic view for a codemode call whose input is still streaming 
   setToolCallExpanded(streaming.toolCallId, true);
   t.after(() => setToolCallExpanded(streaming.toolCallId, false));
   const streamingText = textOf(renderCodemode(streaming));
-  assert.match(streamingText, /Generating parameters/);
+  assert.match(streamingText, /正在生成参数/);
   assert.match(streamingText, /\{"code":"const secret/);
   assert.doesNotMatch(streamingText, /Tool calls/);
 

@@ -105,8 +105,8 @@ test("archive rows show unread indication via the shared indicator", () => {
   assert.match(source, /isUnread=\{unreadSessionIds\.has\(session\.id\)\}/);
 });
 
-test("the entry, back and unarchive strings exist in all three locales", async () => {
-  for (const locale of ["zh-CN", "zh-TW", "en"]) {
+test("the entry, back and unarchive strings exist in zh-CN", async () => {
+  for (const locale of ["zh-CN"]) {
     const messages = await readFile(new URL(`../lib/i18n/messages/${locale}.ts`, import.meta.url), "utf8");
     assert.match(messages, /"sidebar\.archivedSessions": "[^"]*\{count\}[^"]*"/, `${locale} archivedSessions carries the count`);
     assert.match(messages, /"sidebar\.archiveBack": "/, `${locale} archiveBack exists`);
@@ -115,11 +115,7 @@ test("the entry, back and unarchive strings exist in all three locales", async (
   // Locator contracts, exactly: zh-CN entry 已归档 {count}, en Archived {count};
   // back 返回/Back; unarchive 取消归档/取消封存/Unarchive.
   const zhCN = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
-  const en = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
   assert.match(zhCN, /"sidebar\.archivedSessions": "已归档 \{count\}"/);
-  assert.match(en, /"sidebar\.archivedSessions": "Archived \{count\}"/);
   assert.match(zhCN, /"sidebar\.archiveBack": "返回"/);
-  assert.match(en, /"sidebar\.archiveBack": "Back"/);
   assert.match(zhCN, /"sidebar\.unarchive": "取消归档"/);
-  assert.match(en, /"sidebar\.unarchive": "Unarchive"/);
 });

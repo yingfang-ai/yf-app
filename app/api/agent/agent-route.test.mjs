@@ -1,3 +1,4 @@
+import "../../../lib/yf/test-operator.mjs";
 import assert from "node:assert/strict";
 import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -3,9 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("./AppShell.tsx", import.meta.url), "utf8");
-const enSource = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhCNSource = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
-const zhTWSource = await readFile(new URL("../lib/i18n/messages/zh-TW.ts", import.meta.url), "utf8");
 
 test("Full History renders in the right panel instead of a contextless new tab", () => {
   const handler = source.slice(
@@ -38,7 +36,7 @@ test("the snapshot banner explains what it is and offers the standalone page", (
 });
 
 test("all three locales carry the new history keys", () => {
-  for (const [name, localeSource] of [["en", enSource], ["zh-CN", zhCNSource], ["zh-TW", zhTWSource]]) {
+  for (const [name, localeSource] of [["zh-CN", zhCNSource]]) {
     for (const key of ["history.snapshot", "history.openInTab"]) {
       assert.ok(localeSource.includes(`"${key}"`), `${name} is missing ${key}`);
     }

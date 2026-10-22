@@ -6,7 +6,6 @@ const templateSource = await readFile(new URL("./SettingsUi.tsx", import.meta.ur
 const cssSource = await readFile(new URL("../app/settings.css", import.meta.url), "utf8");
 const globalCssSource = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
-const enSource = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhSource = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
 const configSources = await Promise.all(
   ["SkillsConfig", "AgentsConfig", "PluginsConfig"].map(async (name) => [
@@ -115,7 +114,6 @@ test("skill scope group labels are localized", () => {
   const skillsSource = Object.fromEntries(configSources).SkillsConfig;
   for (const scope of ["global", "project", "path"]) {
     assert.match(skillsSource, new RegExp(`t\\("skills\\.scope\\.${scope}"\\)`));
-    assert.match(enSource, new RegExp(`"skills\\.scope\\.${scope}":`));
     assert.match(zhSource, new RegExp(`"skills\\.scope\\.${scope}":`));
   }
   assert.match(zhSource, /"skills\.scope\.global": "全局"/);
@@ -233,7 +231,7 @@ test("plugin and skill panel words come from the locale files", () => {
     assert.doesNotMatch(skills, literal);
   }
   assert.match(skills, /t\("skills\.discoverHint"\)\.split\("\{site\}"\)/);
-  for (const source of [enSource, zhSource]) {
+  for (const source of [zhSource]) {
     assert.match(source, /"skills\.discoverHint": "[^"]*\{site\}[^"]*"/);
     for (const key of ["config.source", "config.examples", "config.name", "config.scope", "plugins.diagnostic", "plugins.diagnostics"]) {
       assert.match(source, new RegExp(`"${key.replace(".", "\\.")}":`));

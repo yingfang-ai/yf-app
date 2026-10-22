@@ -15,9 +15,7 @@ await jiti.import("./SessionSidebar.tsx");
 const source = await readFile(new URL("./SessionSidebar.tsx", import.meta.url), "utf8");
 const sessionItemSource = source.slice(source.indexOf("function SessionItem({"));
 const messageFiles = {
-  en: await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8"),
   zhCN: await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8"),
-  zhTW: await readFile(new URL("../lib/i18n/messages/zh-TW.ts", import.meta.url), "utf8"),
 };
 
 test("SessionItem accepts an onArchived prop and renderSessionRow wires it to archiveSession", () => {
@@ -71,9 +69,7 @@ test("the archive click handler stays local: stopPropagation + set mutation, no 
   assert.doesNotMatch(archiveButton, /fetch\(|window\.open|performDelete|onDeleted/);
 });
 
-test("i18n carries the archive label in all three dictionaries with the exact e2e strings", () => {
-  const { en, zhCN, zhTW } = messageFiles;
-  assert.match(en, /"sidebar\.archive": "Archive",/);
+test("i18n carries the archive label in the zh-CN dictionary with the exact e2e strings", () => {
+  const { zhCN } = messageFiles;
   assert.match(zhCN, /"sidebar\.archive": "归档",/);
-  assert.match(zhTW, /"sidebar\.archive": "封存",/);
 });

@@ -133,7 +133,7 @@ test("the layout toggle persists through the store and re-reads without a reload
 });
 
 test("the sidebar tab strings exist in all three message files", async () => {
-  for (const locale of ["en", "zh-CN", "zh-TW"]) {
+  for (const locale of ["zh-CN"]) {
     const messages = await readFile(new URL(`../lib/i18n/messages/${locale}.ts`, import.meta.url), "utf8");
     for (const key of ["sidebar.tabsLabel", "sidebar.tabSessions", "sidebar.tabFiles"]) {
       assert.match(messages, new RegExp(`"${key}": "`), `${locale}: ${key}`);

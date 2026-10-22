@@ -107,7 +107,7 @@ test("button stays hidden throughout the scroll-restore window", () => {
 });
 
 test("localized label key exists in all three locales", async () => {
-  for (const file of ["../lib/i18n/messages/en.ts", "../lib/i18n/messages/zh-CN.ts", "../lib/i18n/messages/zh-TW.ts"]) {
+  for (const file of ["../lib/i18n/messages/zh-CN.ts"]) {
     const locale = await readFile(new URL(file, import.meta.url), "utf8");
     assert.match(locale, /"chat\.scrollToLatest": "(.+)",/, `${file} must define chat.scrollToLatest`);
   }

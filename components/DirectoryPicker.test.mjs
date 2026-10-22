@@ -436,7 +436,7 @@ test("the new manage refusal/placeholder strings are translated in all three loc
     "directoryPicker.renamePathDuplicate",
     "directoryPicker.entryPath",
   ];
-  for (const file of ["../lib/i18n/messages/en.ts", "../lib/i18n/messages/zh-CN.ts", "../lib/i18n/messages/zh-TW.ts"]) {
+  for (const file of ["../lib/i18n/messages/zh-CN.ts"]) {
     const localeSource = await readFile(new URL(file, import.meta.url), "utf8");
     for (const key of keys) {
       assert.match(localeSource, new RegExp(`"${key}": "[^"\\\\]+"`), `${file} must carry ${key}`);
@@ -446,9 +446,7 @@ test("the new manage refusal/placeholder strings are translated in all three loc
 
 test("every validation issue code has a translated message in all three locales", async () => {
   for (const [file, marker] of [
-    ["../lib/i18n/messages/en.ts", "File name is required"],
     ["../lib/i18n/messages/zh-CN.ts", "请输入文件名"],
-    ["../lib/i18n/messages/zh-TW.ts", "請輸入檔案名稱"],
   ]) {
     const localeSource = await readFile(new URL(file, import.meta.url), "utf8");
     for (const issue of NEW_FILE_NAME_ISSUES) {
@@ -1018,7 +1016,7 @@ test("every new manage string and all nine refusal codes are translated in all t
     ...FS_MANAGE_REFUSAL_CODES.map((code) => `directoryPicker.fsManage.${code}`),
   ];
   assert.equal(FS_MANAGE_REFUSAL_CODES.length, 9);
-  for (const file of ["../lib/i18n/messages/en.ts", "../lib/i18n/messages/zh-CN.ts", "../lib/i18n/messages/zh-TW.ts"]) {
+  for (const file of ["../lib/i18n/messages/zh-CN.ts"]) {
     const localeSource = await readFile(new URL(file, import.meta.url), "utf8");
     for (const key of keys) {
       assert.match(localeSource, new RegExp(`"${key}": "[^"]+"`), `${file} must carry ${key}`);

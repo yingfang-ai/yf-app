@@ -37,7 +37,7 @@ test("shows code mode as its own field with a plain-language hint", async () => 
   assert.match(source, /<select\s+aria-label=\{t\("agents\.codemode"\)\}\s+value=\{draft\.codemode \?\? "off"\}[\s\S]*?<option value="inherit">[\s\S]*?<option value="on">[\s\S]*?<option value="off">/);
   assert.match(source, /\{t\("agents\.codemodeHint"\)\}/);
   assert.match(source, /codemode: "off",/);
-  for (const locale of ["en", "zh-CN", "zh-TW"]) {
+  for (const locale of ["zh-CN"]) {
     const text = await readFile(new URL(`../lib/i18n/messages/${locale}.ts`, import.meta.url), "utf8");
     assert.match(text, /"agents\.codemodeHint": "/);
     assert.match(text, /"agents\.codemode\.inherit": "/);
@@ -169,7 +169,7 @@ test("uses the same form controls for editable and readonly profiles", () => {
 
 test("shows a profile file's skills and extensions lists read-only under the switches", async () => {
   const messages = {};
-  for (const locale of ["en", "zh-CN", "zh-TW"]) {
+  for (const locale of ["zh-CN"]) {
     messages[locale] = await readFile(new URL(`../lib/i18n/messages/${locale}.ts`, import.meta.url), "utf8");
   }
   assert.match(source, /\{draft\.loadSkills && draft\.skills !== undefined && \(/);

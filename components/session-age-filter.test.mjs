@@ -10,9 +10,7 @@ import test from "node:test";
 const sidebar = await readFile(new URL("./SessionSidebar.tsx", import.meta.url), "utf8");
 const settings = await readFile(new URL("./SettingsPanel.tsx", import.meta.url), "utf8");
 const lib = await readFile(new URL("../lib/session-filter.ts", import.meta.url), "utf8");
-const en = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhCN = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
-const zhTW = await readFile(new URL("../lib/i18n/messages/zh-TW.ts", import.meta.url), "utf8");
 
 test("the sidebar folds the age filter into visibleSessions after the worker filter", () => {
   assert.match(sidebar, /filterSessionsByAge\(/);
@@ -39,7 +37,7 @@ test("Settings persists the age window through the shared store", () => {
 });
 
 test("i18n carries the age-filter strings in all three dictionaries", () => {
-  for (const dict of [en, zhCN, zhTW]) {
+  for (const dict of [zhCN]) {
     assert.match(dict, /"settings\.sessionAgeDays":/);
     assert.match(dict, /"settings\.sessionAgeDaysDescription":/);
   }

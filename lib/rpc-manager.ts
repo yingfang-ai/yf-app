@@ -2587,7 +2587,7 @@ export async function startRpcSession(
       : undefined;
     // 单一 LLM 通道（plan step 6，spec R3）：普通会话（非 subagent）的模型解析从通道取
     // （base_url/key/model_id 只在服务端进程内，key 不进浏览器字节）。未配置的**新**会话
-    // 明确报错、不静默兑底；恢复的会话（sessionFile）无通道也可打开（模型解析不到时由
+    // 明确报错、不静默兑底（调用方显式给了 initialModel 的运营者路径除外）；恢复的会话（sessionFile）无通道也可打开（模型解析不到时由
     // SDK 如实报错）。subagent 会话由其 profile 自解析，不经此通道。
     let channelRuntime: ModelRuntime | undefined;
     let channelModel: { provider: string; modelId: string } | undefined;
@@ -2596,7 +2596,7 @@ export async function startRpcSession(
       if (channel) {
         channelRuntime = await llmChannelModelRuntime(channel);
         channelModel = { provider: LLM_CHANNEL_PROVIDER_ID, modelId: channel.model_id };
-      } else if (!sessionFile) {
+      } else if (!sessionFile && !initialModel) {
         throw new Error("LLM 配置通道未配置：请让运营者在设置里配置 LLM 服务（base_url / key / model_id）后重试");
       }
     }

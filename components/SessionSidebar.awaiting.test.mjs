@@ -9,9 +9,7 @@ const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tsconf
 await jiti.import("./SessionSidebar.tsx");
 
 const source = await readFile(new URL("./SessionSidebar.tsx", import.meta.url), "utf8");
-const en = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhCN = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
-const zhTW = await readFile(new URL("../lib/i18n/messages/zh-TW.ts", import.meta.url), "utf8");
 
 test("awaiting ids arrive on the same two channels as running ids", () => {
   // The 2500 ms poll is the authoritative cadence; the sessions-list fetch
@@ -63,7 +61,7 @@ test("the awaiting state is registry-driven, so closed sessions stay badge-free"
   // payload only, and the server-side set is restricted to live registry
   // sessions that are running (covered in lib/rpc-manager-awaiting.test.mjs).
   assert.doesNotMatch(source, /setAwaitingSessionIds\(new Set\(\[\.\.\.[^\]]*\]\)\)/);
-  for (const messages of [en, zhCN, zhTW]) {
+  for (const messages of [zhCN]) {
     assert.match(messages, /"sidebar\.awaitingInput": /);
   }
 });

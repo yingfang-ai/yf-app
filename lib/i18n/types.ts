@@ -1,5 +1,5 @@
-/** 内置的可用界面语言。 */
-export type Locale = "en" | "zh-CN" | "zh-TW";
+/** 内置的可用界面语言：本产品仅简体中文（yingfang#28 R12），机制保留以便日后增补。 */
+export type Locale = "zh-CN";
 
 /** 翻译字符串使用的简单插值参数。 */
 export type TranslationParams = Record<string, string | number>;

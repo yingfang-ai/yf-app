@@ -5,9 +5,7 @@ import { stripTypeScriptTypes } from "node:module";
 import vm from "node:vm";
 
 const source = await readFile(new URL("./PolyforgePanel.tsx", import.meta.url), "utf8");
-const enSource = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhCNSource = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
-const zhTWSource = await readFile(new URL("../lib/i18n/messages/zh-TW.ts", import.meta.url), "utf8");
 
 function extractPureFunction(name) {
   const start = source.indexOf(`export function ${name}`);
@@ -101,13 +99,13 @@ test("the selected detail carries an explicit deselect control (AC6 once the job
   // stale detail is always dismissable without a reload.
   assert.match(source, /\{watchStatus\?\.slug \?\? selectedWi\}/);
   // The key is translated in all three locales (fallback would be a raw key).
-  for (const [name, localeSource] of [["en", enSource], ["zh-CN", zhCNSource], ["zh-TW", zhTWSource]]) {
+  for (const [name, localeSource] of [["zh-CN", zhCNSource]]) {
     assert.match(localeSource, /"polyforge\.deselect": "\S/, `${name} must translate polyforge.deselect`);
   }
   // Accessible name must not collide with the topbar button locator, whose
   // name carries "Polyforge" (see e2e/polyforge.mjs pfButton).
-  const enMatch = enSource.match(/"polyforge\.deselect": "([^"]+)"/);
-  assert.ok(enMatch && !/polyforge/i.test(enMatch[1]), "deselect label must not contain Polyforge");
+  const zhMatch = zhCNSource.match(/"polyforge\.deselect": "([^"]+)"/);
+  assert.ok(zhMatch && !/polyforge/i.test(zhMatch[1]), "deselect label must not contain Polyforge");
 });
 
 test("every user-facing string goes through i18n, with raw fallback for unknown values", () => {
@@ -126,13 +124,8 @@ test("all three locales carry the polyforge keys in parity", () => {
   const keyOf = (localeSource) => [
     ...localeSource.matchAll(/^\s*"((?:polyforge|bgTasks)\.[a-zA-Z._]+)":/gm),
   ].map((m) => m[1]).filter((key) => key.startsWith("polyforge."));
-  const enKeys = keyOf(enSource);
-  assert.ok(enKeys.length >= 40, `expected the full polyforge key set in en, got ${enKeys.length}`);
-  for (const [name, localeSource] of [["zh-CN", zhCNSource], ["zh-TW", zhTWSource]]) {
-    const keys = keyOf(localeSource);
-    assert.deepEqual(keys, enKeys, `${name} must carry the exact en key set in order`);
-    assert.ok(!localeSource.includes("polyforge.queue\": \"Queue\""), `${name} must actually translate, not copy en`);
-  }
+  const zhKeys = keyOf(zhCNSource);
+  assert.ok(zhKeys.length >= 40, `expected the full polyforge key set in zh-CN, got ${zhKeys.length}`);
 });
 
 test("pi#112: EVENT_KIND_KEYS covers exactly the 19 live kinds with raw fallback", () => {
@@ -228,7 +221,7 @@ test("pi#112: event mode toggle defaults simple, persists via localStorage, issu
 });
 
 test("pi#112: mode toggle strings and eventSync word are translated in all three locales", () => {
-  for (const [name, localeSource] of [["en", enSource], ["zh-CN", zhCNSource], ["zh-TW", zhTWSource]]) {
+  for (const [name, localeSource] of [["zh-CN", zhCNSource]]) {
     for (const key of ["polyforge.eventMode.simple", "polyforge.eventMode.verbose", "polyforge.eventSync"]) {
       assert.match(localeSource, new RegExp(`"${key.replace(/\./g, "\\.")}": "\\S`), `${name} must translate ${key}`);
     }
@@ -236,7 +229,7 @@ test("pi#112: mode toggle strings and eventSync word are translated in all three
 });
 
 test("pi#112: dead event-kind labels removed from all three locales", () => {
-  for (const [name, localeSource] of [["en", enSource], ["zh-CN", zhCNSource], ["zh-TW", zhTWSource]]) {
+  for (const [name, localeSource] of [["zh-CN", zhCNSource]]) {
     for (const kind of ["step_blocked", "job_done", "job_blocked"]) {
       assert.ok(!localeSource.includes(`polyforge.eventKind.${kind}`), `${name} still ships the dead label ${kind}`);
     }
@@ -501,7 +494,7 @@ test("pi#117: detail rows render command+age, tool calls, recent files, timing a
 });
 
 test("pi#117: new detail labels are translated in all three locales", () => {
-  for (const [name, localeSource] of [["en", enSource], ["zh-CN", zhCNSource], ["zh-TW", zhTWSource]]) {
+  for (const [name, localeSource] of [["zh-CN", zhCNSource]]) {
     for (const key of ["polyforge.command", "polyforge.toolCalls", "polyforge.recentFiles", "polyforge.stepTiming", "polyforge.origin"]) {
       assert.match(localeSource, new RegExp(`"${key.replace(/\./g, "\\.")}": "\\S`), `${name} must translate ${key}`);
     }
@@ -538,7 +531,7 @@ test("pi#119: the detail renders a summary block — line, age, cap marker, erro
 });
 
 test("pi#119: the summary labels are translated in all three locales", () => {
-  for (const [name, localeSource] of [["en", enSource], ["zh-CN", zhCNSource], ["zh-TW", zhTWSource]]) {
+  for (const [name, localeSource] of [["zh-CN", zhCNSource]]) {
     for (const key of ["polyforge.summary", "polyforge.summaryCapped"]) {
       assert.match(localeSource, new RegExp(`"${key.replace(/\./g, "\\.")}": "\\S`), `${name} must translate ${key}`);
     }

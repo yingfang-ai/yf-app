@@ -48,11 +48,9 @@ test("the badge chip is localized via sidebar.archivedBadge", () => {
   assert.match(source, /title=\{t\("sidebar\.archivedBadge"\)\}/);
 });
 
-test("the badge text exists in all three locales, exactly", async () => {
+test("the badge text exists in zh-CN, exactly", async () => {
   const expectations = [
     ["zh-CN", "已归档"],
-    ["zh-TW", "已封存"],
-    ["en", "Archived"],
   ];
   for (const [locale, label] of expectations) {
     const messages = await readFile(new URL(`../lib/i18n/messages/${locale}.ts`, import.meta.url), "utf8");

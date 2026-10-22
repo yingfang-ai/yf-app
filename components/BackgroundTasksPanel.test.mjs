@@ -4,9 +4,7 @@ import test from "node:test";
 
 const source = await readFile(new URL("./BackgroundTasksPanel.tsx", import.meta.url), "utf8");
 const appShellSource = await readFile(new URL("./AppShell.tsx", import.meta.url), "utf8");
-const enSource = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhCNSource = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
-const zhTWSource = await readFile(new URL("../lib/i18n/messages/zh-TW.ts", import.meta.url), "utf8");
 
 test("panel rows show name, status dot, time, bytes, exit code, and the agent marker", () => {
   assert.match(source, /task\.name \|\| task\.id/);
@@ -47,7 +45,7 @@ test("every user-facing string goes through i18n", () => {
 });
 
 test("all three locales carry the bgTasks keys", () => {
-  for (const [name, localeSource] of [["en", enSource], ["zh-CN", zhCNSource], ["zh-TW", zhTWSource]]) {
+  for (const [name, localeSource] of [["zh-CN", zhCNSource]]) {
     for (const key of [
       "bgTasks.title", "bgTasks.open", "bgTasks.close", "bgTasks.refresh", "bgTasks.loading",
       "bgTasks.unavailable", "bgTasks.empty", "bgTasks.kill", "bgTasks.killConfirm", "bgTasks.agentTask",

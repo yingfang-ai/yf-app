@@ -97,7 +97,7 @@ test("MultiRootFileExplorer renders exactly one global ignored toggle and passes
 });
 
 test("the i18n keys exist in all three message files", async () => {
-  for (const locale of ["en", "zh-CN", "zh-TW"]) {
+  for (const locale of ["zh-CN"]) {
     const messages = await readFile(new URL(`../lib/i18n/messages/${locale}.ts`, import.meta.url), "utf8");
     assert.match(messages, /"sidebar\.showIgnoredFiles": /, `${locale}: sidebar.showIgnoredFiles`);
     assert.match(messages, /"sidebar\.showIgnoredFilesHint": /, `${locale}: sidebar.showIgnoredFilesHint`);

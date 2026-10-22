@@ -6,7 +6,7 @@ import { translateMessage } from "@/lib/i18n/format";
 import type { Locale, LocalePlugin, TranslationParams } from "@/lib/i18n/types";
 
 const LOCALE_STORAGE_KEY = "pi-locale";
-const defaultLocale: Locale = "en";
+const defaultLocale: Locale = "zh-CN";
 
 interface I18nContextValue {
   locale: Locale;
@@ -27,7 +27,7 @@ function getMessages(): Record<string, Record<string, string>> {
 function readInitialLocale(): Locale {
   try {
     const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (stored === "en" || stored === "zh-CN" || stored === "zh-TW") return stored;
+    if (stored === "zh-CN") return stored;
   } catch {
     // 隐私模式或存储不可用时继续使用浏览器语言。
   }

@@ -10,11 +10,11 @@ const jiti = createJiti(import.meta.url, {
 const React = await jiti.import("react");
 const { renderToStaticMarkup } = await jiti.import("react-dom/server");
 const { TreeNode } = await jiti.import("./FileExplorer.tsx");
-const { enLocale } = await jiti.import("@/lib/i18n/messages/en.ts");
+const { zhCNLocale: enLocale } = await jiti.import("@/lib/i18n/messages/zh-CN.ts");
 const { translateMessage } = await jiti.import("@/lib/i18n/format.ts");
 
 const source = await readFile(new URL("./FileExplorer.tsx", import.meta.url), "utf8");
-const t = (key, params) => translateMessage("en", key, { en: enLocale.messages }, params);
+const t = (key, params) => translateMessage("zh-CN", key, { "zh-CN": enLocale.messages }, params);
 
 function renderNode(node, { open = true } = {}) {
   return renderToStaticMarkup(React.createElement(TreeNode, {
@@ -43,15 +43,15 @@ const linkedNode = {
 
 test("an expanded link that leaves the project names its target and offers to allow it", () => {
   const html = renderNode(linkedNode);
-  assert.match(html, /Links to \/elsewhere\/project, outside this project/);
-  assert.match(html, /<button type="button" title="Browse \/elsewhere\/project until Pi Web restarts[^"]*"[^>]*>Allow browsing<\/button>/);
+  assert.match(html, /链接到项目外部：\/elsewhere\/project/);
+  assert.match(html, /<button type="button" title="在 Pi Web 重启前允许浏览 \/elsewhere\/project[^"]*"[^>]*>允许浏览<\/button>/);
   assert.doesNotMatch(html, />empty</);
 });
 
 test("a collapsed link that leaves the project is marked on its row", () => {
   const html = renderNode(linkedNode, { open: false });
-  assert.match(html, /aria-label="Links to \/elsewhere\/project, outside this project"/);
-  assert.doesNotMatch(html, /Allow browsing/);
+  assert.match(html, /aria-label="链接到项目外部：\/elsewhere\/project"/);
+  assert.doesNotMatch(html, /允许浏览/);
 });
 
 test("ordinary directories render no link notice", () => {
@@ -76,7 +76,7 @@ test("allowing a link sends the target the operator was shown", () => {
 
 test("a link that encloses the project or home folder warns and confirms before allowing", () => {
   const html = renderNode({ ...linkedNode, outsideLinkTarget: "/", outsideLinkEncloses: true });
-  assert.match(html, /That folder contains this project or your home folder\./);
-  assert.doesNotMatch(renderNode(linkedNode), /contains this project/);
+  assert.match(html, /该文件夹包含当前项目或你的主目录。/);
+  assert.doesNotMatch(renderNode(linkedNode), /包含当前项目/);
   assert.match(source, /if \(node\.outsideLinkEncloses && !window\.confirm\(t\("files\.allowEnclosingLinkConfirm"/);
 });

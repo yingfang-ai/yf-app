@@ -8,7 +8,6 @@ const shellSource = await readFile(new URL("./AppShell.tsx", import.meta.url), "
 const sidebarSource = await readFile(new URL("./SessionSidebar.tsx", import.meta.url), "utf8");
 const themeSource = await readFile(new URL("../hooks/useTheme.ts", import.meta.url), "utf8");
 const themeOptionsSource = await readFile(new URL("../lib/theme.ts", import.meta.url), "utf8");
-const enSource = await readFile(new URL("../lib/i18n/messages/en.ts", import.meta.url), "utf8");
 const zhSource = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
 const loginSource = await readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8");
 
@@ -130,8 +129,6 @@ test("uses top navigation on desktop and one compact section picker on mobile", 
 });
 
 test("labels agent profiles as sub-agents", () => {
-  assert.match(enSource, /"common\.agents": "Sub-agents"/);
-  assert.match(enSource, /"agents\.new": "New sub-agent"/);
   assert.match(zhSource, /"common\.agents": "子代理"/);
   assert.match(zhSource, /"agents\.new": "新建子代理"/);
 });
@@ -209,7 +206,7 @@ test("the session filter editor persists on change and hydrates after mount, nev
 });
 
 test("the session filter strings exist in all three locales", async () => {
-  for (const locale of ["en", "zh-CN", "zh-TW"]) {
+  for (const locale of ["zh-CN"]) {
     const source = await readFile(new URL(`../lib/i18n/messages/${locale}.ts`, import.meta.url), "utf8");
     for (const key of [
       "settings.sessionFilter",
@@ -264,7 +261,7 @@ test("the general area hosts the files-placement radio row backed by the live st
 });
 
 test("the files-placement strings exist in all three locales", async () => {
-  for (const locale of ["en", "zh-CN", "zh-TW"]) {
+  for (const locale of ["zh-CN"]) {
     const source = await readFile(new URL(`../lib/i18n/messages/${locale}.ts`, import.meta.url), "utf8");
     for (const key of [
       "settings.sidebarLayout",

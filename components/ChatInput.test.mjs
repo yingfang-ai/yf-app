@@ -270,7 +270,7 @@ test("shows the follow-up shortcut in the button tooltip", () => {
     })),
   );
 
-  assert.match(html, /title="Queue this message after the agent finishes \(Alt\/Option\+Enter\)"/);
+  assert.match(html, /title="在 Agent 完成后排队此消息 \(Alt\/Option\+Enter\)"/);
   assert.match(html, /aria-keyshortcuts="Alt\+Enter"/);
 });
 
@@ -303,7 +303,7 @@ test("renders the upstream model error", () => {
   );
 
   assert.match(html, /role="alert"/);
-  assert.match(html, /Model error/);
+  assert.match(html, /模型错误/);
   assert.match(html, /providers\.custom\.models\.0\.id must not be empty/);
 });
 
@@ -327,7 +327,7 @@ test("renders enabledModels scope warnings", () => {
     ),
   );
 
-  assert.match(html, /Model scope warning/);
+  assert.match(html, /模型范围警告/);
   assert.match(html, /ghost-gateway/);
   assert.equal(
     renderToStaticMarkup(
@@ -352,7 +352,7 @@ test("renders the read-only tool preset as the active selection", () => {
     ),
   );
 
-  assert.match(html, /title="Change tool preset: read-only"/);
+  assert.match(html, /title="更改工具预设: read-only"/);
   assert.match(html, />read-only<\/span>/);
 });
 
@@ -371,8 +371,8 @@ test("renders the empty tool preset as Chat only", () => {
     ),
   );
 
-  assert.match(html, /title="Change tool preset: Chat only"/);
-  assert.match(html, />Chat only<\/span>/);
+  assert.match(html, /title="更改工具预设: 仅聊天"/);
+  assert.match(html, />仅聊天<\/span>/);
 });
 
 test("renders the compact composer with the standard Send button and no session controls", () => {
@@ -390,7 +390,7 @@ test("renders the compact composer with the standard Send button and no session 
   );
 
   assert.match(html, /<textarea/);
-  assert.match(html, />Send<\/button>/);
+  assert.match(html, />发送<\/button>/);
   assert.equal((html.match(/<button\b/g) ?? []).length, 1);
   assert.doesNotMatch(html, /type="file"|Attach files|Change tool preset/);
 });
@@ -404,7 +404,7 @@ test("the attach button takes any file when the chat handles them, and images on
   const fileInput = (html) => html.match(/<input[^>]*type="file"[^>]*>/)?.[0] ?? "";
 
   const html = render({ onAttachFiles() {} });
-  assert.match(html, /title="Attach files"/);
+  assert.match(html, /title="附加文件"/);
   assert.match(fileInput(html), /multiple=""/);
   // No accept list and no capture: phones offer files, the photo library and the camera.
   assert.doesNotMatch(fileInput(html), /accept=|capture=/);
@@ -749,8 +749,8 @@ test("a compact error can be dismissed when the composer is given a handler", ()
     ),
   );
 
-  assert.match(render({ onDismissCompactError() {} }), /aria-label="Dismiss compaction error"/);
-  assert.doesNotMatch(render({}), /Dismiss compaction error/);
+  assert.match(render({ onDismissCompactError() {} }), /aria-label="关闭压缩错误"/);
+  assert.doesNotMatch(render({}), /关闭压缩错误/);
 });
 
 test("modelSupportsImageInput warns only when modality info is known and lacks image", () => {
@@ -801,9 +801,9 @@ test("renders image warnings for known text-only defaults without an explicit mo
       );
 
       assert.match(html, /<img/);
-      assert.equal(html.includes("Images may not be sent"), warningExpected, `default model: ${modelId}`);
+      assert.equal(html.includes("图片可能无法发送"), warningExpected, `default model: ${modelId}`);
       if (warningExpected) {
-        assert.match(html, /The selected model \(Text Only\) does not support image input/);
+        assert.match(html, /当前选择的模型（Text Only）不支持图片输入/);
         assert.ok(html.indexOf('role="alert"') < html.indexOf("<textarea"));
       }
     }
@@ -945,9 +945,9 @@ test("the kept-draft notice is transient and localized", () => {
 });
 
 test("the kept-draft notice strings exist in every locale catalog", async () => {
-  for (const locale of ["en", "zh-CN", "zh-TW"]) {
+  for (const locale of ["zh-CN"]) {
     const catalog = await jiti.import(`@/lib/i18n/messages/${locale}.ts`);
-    const messages = locale === "en" ? catalog.enLocale.messages : locale === "zh-CN" ? catalog.zhCNLocale.messages : catalog.zhTWLocale.messages;
+    const messages = catalog.zhCNLocale.messages;
     assert.equal(typeof messages["chat.draftKeptTitle"], "string", `${locale} must carry chat.draftKeptTitle`);
     assert.equal(typeof messages["chat.draftKeptBody"], "string", `${locale} must carry chat.draftKeptBody`);
     assert.ok(messages["chat.draftKeptBody"].length > 0, `${locale} body must not be empty`);
