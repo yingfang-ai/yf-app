@@ -16,9 +16,10 @@ const nextConfig: NextConfig = {
   // next/image is only used for static icons, so the /_next/image optimizer
   // (and its sharp/libheif attack surface, see GHSA-2xp9-vwfh-vxw4) is not needed.
   images: { unoptimized: true },
-  // Next 16 blocks cross-origin access to dev resources by default. Allow the
-  // loopback and the RFC1918 LAN ranges so the dev server stays reachable
-  // from other machines on the same LAN.
+  // Next 16 blocks cross-origin access to dev resources by default (matched on
+  // the Origin hostname, port ignored). Allow the loopback, the RFC1918 LAN
+  // ranges so the dev server stays reachable from other machines on the same
+  // LAN, and the gcp-dev server's own public and tailscale hostnames.
   allowedDevOrigins: [
     "127.0.0.1",
     "10.*.*.*",
@@ -40,6 +41,12 @@ const nextConfig: NextConfig = {
     "172.30.*.*",
     "172.31.*.*",
     "192.168.*.*",
+    // gcp-dev server public access: domain, sslip.io name and bare IP
+    "gcp-dev.stevenforai.top",
+    "34-104-167-170.sslip.io",
+    "34.104.167.170",
+    // gcp-dev server tailscale access
+    "100.90.202.102",
   ],
   async headers() {
     return [
