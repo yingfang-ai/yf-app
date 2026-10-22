@@ -21,18 +21,19 @@ app-update、任意目录浏览、LLM 配置仅运营者可用。
    服务端没有找回通道。**
 2. **登录**：`user_id`（32 位 hex）+ recovery。`user_id` 由浏览器 localStorage 记住，
    recovery 永不持久化。
-3. **对话工作台**：一句话描述想画什么，LLM 引导补全 prompt / negative_prompt /
-   n / seed / params（默认隐藏；专家模式可查看修改，并可选择后端）。
-4. **下单与轮询**：提交后 202 取 `round_id`，前端仅以 GET 轮询获知轮状态。
-5. **产图读面**：图片经 presign URL 加载（过期自动重签；未配置 presign 时如实呈现
-   「图片暂不可用」）。勾选一张图即定稿，后续 refine 默认以该轮为 parent。
+3. **引导对话**：新对话默认进入引导 skill，用日常的话描述想画什么，引导员多轮追问后给出
+   一份**草案**（后端、张数、描述）；想改就在同一个对话里接着改。
+4. **确认下单**：草案以确认卡呈现，点「确认下单」才会提交（以你的登录身份下单，卡上
+   不显示价格）；之后仅以 GET 轮询获知轮状态直到终态。
+5. **画廊**：完成的图片落到你自己的画廊（`<数据根>/gallery/<user_id>/…`），在聊天里
+   直接看缩略图、点开大图；失败/取消只在聊天里告知。用户之间互不可见。
 
 ## 部署
 
-同源反向代理形态：yf-app 与 yingfang API 同源挂载（例如 Caddy/Nginx 把 `/api` 转发
-到 yingfang、其余转发到 yf-app 的 Next 服务），`yf_session` cookie（HttpOnly /
-SameSite=Lax / Path=/）同源自然携带，yf-app 不自建任何跨源凭据方案。
-服务端 LLM 环境变量：`YF_LLM_BASE_URL` / `YF_LLM_API_KEY` / `YF_LLM_MODEL`。
+同源形态：反向代理只把全部流量交给 yf-app 的 Next 服务；yingfang 契约面挂在
+`/api/yf/*` 下由 Next 代理到 yingfang（`:9701`），`yf_session` cookie（HttpOnly /
+SameSite=Lax / Path=/）同源自然携带，yf-app 不自建任何跨源凭据方案。LLM 由运营者
+在设置里配置（key 只写不回显，存服务端数据根），不走环境变量。
 详见 [docs/deploy.md](./docs/deploy.md)。
 
 ## 开发

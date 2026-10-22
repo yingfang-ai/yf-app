@@ -1,39 +1,32 @@
-# 部署 — 同源反向代理形态
+# 部署 — 同源形态（Next 代理 `/api/yf/*`）
 
 ## 拓扑
 
-yf-app（Next.js 服务）与 yingfang API **同源**部署：一个反向代理对外暴露唯一 origin，
-按路径把 `/api` 转发给 yingfang、其余转发给 yf-app。浏览器只见一个源，因此
-yingfang 下发的 `yf_session` cookie（`HttpOnly` / `SameSite=Lax` / `Path=/`）在
-yf-app 页面发起的同源 fetch 中**自然携带**——yf-app 不实现任何 CORS / 跨源凭据方案。
+yf-app（Next.js 服务）是浏览器唯一的源：页面与 `/api/*` 都由它提供。yingfang 的
+契约面**整体挂在 yf-app 自己的 `/api/yf/*` 前缀下**，由
+`app/api/yf/[...path]/route.ts` 逐字代理到 yingfang（缺省 `http://127.0.0.1:9701`，
+`YF_API_UPSTREAM` 可覆盖）：cookie 原样携带、`Set-Cookie` 原样回传、错误信封透传。
+因此 `yf_session` cookie（`HttpOnly` / `SameSite=Lax` / `Path=/`）对全站同源自然携带
+——yf-app 不实现任何 CORS / 跨源凭据方案。
 
 ```
-浏览器 ──▶ 反向代理（唯一 origin，TLS 在此终结）
-             ├─ /api/*        ──▶ yingfang（-listen :9701）
-             └─ /*            ──▶ yf-app Next 服务（:30141）
+浏览器 ──▶ 反向代理（唯一 origin，TLS 在此终结；**不再按 /api/* 分流**）
+             └─ /*   ──▶ yf-app Next 服务（:30141）
+                          ├─ /api/yf/*  ──▶ yingfang（-listen :9701，服务端内部转发）
+                          └─ 其余 /api/*、页面  yf-app 自己处理
 ```
 
-- yingfang 的 `-cors-origin` 保持未配置（CORS 关闭）——同源形态根本不需要它。
-- `GET /healthz`（运维面）不经代理暴露公网。
-- 唯一的 yf-app 自有 API 是 `POST /api/guide`：它必须由 yf-app 自己处理，因此在
-  反向代理上把 `/api/guide` 从「转发 yingfang」的规则里排除，落回 yf-app 服务。
+- 上游 pi-web 的 Next 服务自己拥有 `/api/*`（agent/sessions/files…），与 yingfang
+  契约的 `/api/*` 会撞名，所以旧的「Caddy 按 `/api/*` 分流给 yingfang」形态已取消。
+- yingfang 的 `-cors-origin` 保持未配置（CORS 关闭）。`GET /healthz` 不经代理暴露公网。
+- 身份：login 经代理时 yf-app 服务端落 session index（`<数据根>/session-index/
+  <sha256(token)>.json`，只存哈希），据此判定 user_id 与运营者身份。
 
 ## Caddy 示例
 
 ```caddy
 example.com {
-    # yf-app 自有服务端面：LLM 引导代理（key 在 yf-app 服务端环境变量）
-    handle /api/guide {
-        reverse_proxy 127.0.0.1:30141
-    }
-    # yingfang 契约面：register/login/logout/convs/rounds/tree/select/presign
-    handle /api/* {
-        reverse_proxy 127.0.0.1:9701
-    }
-    # 产品页面与静态资源
-    handle {
-        reverse_proxy 127.0.0.1:30141
-    }
+    reverse_proxy 127.0.0.1:30141
 }
 ```
 
@@ -44,36 +37,48 @@ server {
     listen 443 ssl;
     server_name example.com;
 
-    location = /api/guide {
-        proxy_pass http://127.0.0.1:30141;
-        proxy_set_header Host $host;
-    }
-    location /api/ {
-        proxy_pass http://127.0.0.1:9701;
-        proxy_set_header Host $host;
-    }
     location / {
         proxy_pass http://127.0.0.1:30141;
         proxy_set_header Host $host;
+        # SSE（agent 事件流）不能被缓冲
+        proxy_buffering off;
     }
 }
 ```
 
-## yf-app 服务端环境变量（LLM 引导代理）
+## yf-app 服务端环境变量
 
 | 变量 | 语义 |
 |---|---|
-| `YF_LLM_BASE_URL` | LLM 提供方 OpenAI 兼容 API 根地址（如 `https://api.example.com/v1`） |
-| `YF_LLM_API_KEY` | LLM 提供方 API key——**只在服务端**，绝不进入浏览器可见字节 |
-| `YF_LLM_MODEL` | 单一固定模型 id；用户无模型选择面 |
+| `YF_API_UPSTREAM` | yingfang 契约面地址，缺省 `http://127.0.0.1:9701` |
+| `YF_DATA_DIR` | 数据根，缺省 `~/.local/share/yf-app` |
+| `YF_OPERATOR_USER_IDS` | 逗号分隔的运营者 user_id，与 `config/operators.json` 取并集（e2e/部署引导缝） |
 
-三项任一缺失 ⇒ `POST /api/guide` 按请求回 503（引导对话不可用），其余产品面不受影响。
+**LLM 配置不走环境变量**：运营者登录后在设置的「LLM 服务」里填 base_url / key /
+model_id，存 `<数据根>/llm/config.json`（0600，只写不回显、不进仓、不进日志）。
+未配置时新对话明确报错、不静默兜底。
+
+## 数据根布局（全部不进 git）
+
+```
+<数据根>/gallery/<user_id>/<conv_id>/<round_id>/<idx>.<ext>   画廊（done 轮落盘）
+<数据根>/users/<user_id>/                                     普通用户会话的 cwd
+<数据根>/llm/config.json                                      LLM 配置（0600）
+<数据根>/session-index/<sha256(token)>.json                   服务端身份索引
+```
+
+## 运营者名单
+
+`config/operators.json`：`{"operatorUserIds": ["<32hex>", …]}`，只含 user_id、不含任何
+凭据，可进仓。运营者可用 skills 安装 / plugins / app-update / 任意目录浏览 / LLM 配置；
+普通用户直访这些面返回 403。
 
 ## 上线核对
 
 - [ ] 浏览器 devtools 里可见的任何请求/响应/JS bundle 中无 LLM key。
 - [ ] 登录后 `yf_session` cookie 属性为 `HttpOnly; SameSite=Lax; Path=/`。
 - [ ] 全部契约请求与页面同源，响应无 `Access-Control-*` 头。
+- [ ] 反代没有把 `/api/*` 转给 yingfang（一律落 yf-app）。
 
 ---
 
@@ -101,12 +106,11 @@ server {
 ### 本地部署（deploy.sh）
 
 ```bash
-# 一次性准备：运行环境（XDG 配置位，与部署产物分离；key 永不进仓库）
+# 可选：运行环境（XDG 配置位，与部署产物分离）。LLM key 不在这里——部署后由
+# 运营者在设置里配置。
 mkdir -p ~/.config/yf-app
 cat > ~/.config/yf-app/env <<'ENV'
-YF_LLM_API_KEY=sk-...          # 必填，缺失 = 拒绝部署（fail closed）
-YF_LLM_BASE_URL=https://...    # 可选
-YF_LLM_MODEL=...               # 可选
+YF_OPERATOR_USER_IDS=<运营者 user_id>   # 可选，与 config/operators.json 并集
 ENV
 chmod 600 ~/.config/yf-app/env
 
@@ -123,18 +127,16 @@ chmod 600 ~/.config/yf-app/env
 覆盖，600 权限），不随 releases 轮转清理——凭据不随产物走。
 
 **防线一览**：`--confirm` 等值防线（拒绝 latest/别名）；只部署 origin 上存在的
-tag 且本地复核 tag 处版本号；构建前 fail closed 检查 LLM key；健康检查
+tag 且本地复核 tag 处版本号；健康检查
 （`GET /` 60 秒预算）不过即自动回滚上一版本并重启（无上一版本则保持停止，
 exit 非零）；保留当前+上一两个版本目录，更旧的自动清理。
 
 ### 与 yingfang 后端的本地配合
 
-yf-app 只覆盖对话引导（`/api/guide`）与页面；契约端点（register/login/convs/
-rounds/tree/select/presign）按同源拓扑由反代分流给 yingfang（`:9701`）。
-本地把整链跑起来需要：
+yf-app 经 `/api/yf/*` 同源代理把契约端点（register/login/convs/rounds/tree/select/
+presign）转给 yingfang（`:9701`）。本地把整链跑起来需要：
 
 1. yingfang `app/api` 指向一个本地 PostgreSQL（`deploy/db.toml` 声明连接路径，
    schema 迁移跑齐），邀请码按裁决由 owner 手工插入；
-2. 一个按路径分流的本地反代（把上面的 Caddy/Nginx 示例的域名换成
-   `127.0.0.1:3000` 即可），`/api/guide` 落 yf-app、其余 `/api/*` 落 yingfang；
+2. 运营者在设置里配好「LLM 服务」，聊天栏引导才可用；
 3. `deploy.sh` 只管 yf-app 这一个面——yingfang 侧服务的启停是它自己的运维面。
