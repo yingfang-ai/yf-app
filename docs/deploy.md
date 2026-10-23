@@ -68,7 +68,6 @@ key 与 headers 值只收字面量。**上线后需重填一次**：yingfang#31 
 <数据根>/gallery/<user_id>/<conv_id>/<round_id>/<idx>.<ext>   画廊（done 轮落盘）
 <数据根>/users/<user_id>/                                     普通用户会话的 cwd
 <数据根>/session-index/<sha256(token)>.json                   服务端身份索引
-<数据根>/session-index/<sha256(token)>.json                   服务端身份索引
 ```
 
 模型配置不落数据根：自定义 provider 配置与内置 provider key 在**服务端 agent

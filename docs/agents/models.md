@@ -4,8 +4,11 @@ yingfang#31 (owner 2026-10-23, overturning the yingfang#28 deletion) restores pi
 model configuration surface: the 「模型」settings tab (in the old 「LLM 服务」position),
 `/api/models*`, `/api/models-config*` and `/api/auth/api-key|providers`. The single
 「LLM 服务」channel (`/api/yf/llm-config`, `lib/yf/llm-config.ts`, `llm/config.json`) is
-gone entirely; `proxy.ts` (`DELETED_API`) lets that one path through without a session so
-it answers Next's plain 404. The「模型」tab is the only model source.
+gone entirely; `proxy.ts` answers that one path with a direct 404 at the gate (`REMOVED_LLM_CHANNEL_API`)
+without forwarding — it cannot ride `DELETED_API`'s pass-through like the terminal family,
+because `/api/yf/[...path]` catch-all would otherwise forward it verbatim to the yingfang
+upstream (and, before the cookie check, hand anonymous callers a way in). The「模型」tab
+is the only model source.
 
 Not restored (spec non-goals, unchanged from #28): OAuth subscription login
 (`/api/auth/login|logout`, `OAuthPastePanel`), the models.dev catalog fill

@@ -363,7 +363,29 @@ test("keeps the model selector visible when a model error leaves no options", ()
 });
 
 test("an ordinary session renders no model selector at all (yingfang#31 A6)", () => {
-  const html = renderToStaticMarkup(
+  // 同入参下被渲染的 ModelSelector 在非 switching 态的 title 是 "Change model"
+  // （components/ModelSelector.tsx），所以否定断言必须瞄它——只断言
+  // "No available models"/"Switching model" 会在门控被删时仍通过（verification B2）。
+  const ordinary = React.createElement(
+    I18nProvider,
+    null,
+    React.createElement(ChatInput, {
+      onSend() {},
+      onAbort() {},
+      onModelChange() {},
+      operatorSession: false,
+      isStreaming: false,
+      model: { provider: "custom", modelId: "m" },
+      modelList: [{ provider: "custom", id: "m", name: "M" }],
+      modelNames: {},
+    }),
+  );
+  const html = renderToStaticMarkup(ordinary);
+  assert.doesNotMatch(html, /aria-haspopup="listbox"/);
+  assert.doesNotMatch(html, /title="Change model"/);
+
+  // 正向对照：同入参、operatorSession: true 时上面的否定断言必命中。
+  const operator = renderToStaticMarkup(
     React.createElement(
       I18nProvider,
       null,
@@ -371,7 +393,7 @@ test("an ordinary session renders no model selector at all (yingfang#31 A6)", ()
         onSend() {},
         onAbort() {},
         onModelChange() {},
-        operatorSession: false,
+        operatorSession: true,
         isStreaming: false,
         model: { provider: "custom", modelId: "m" },
         modelList: [{ provider: "custom", id: "m", name: "M" }],
@@ -379,9 +401,8 @@ test("an ordinary session renders no model selector at all (yingfang#31 A6)", ()
       }),
     ),
   );
-
-  assert.doesNotMatch(html, /No available models/);
-  assert.doesNotMatch(html, /title="Switching model"/);
+  assert.match(operator, /aria-haspopup="listbox"/);
+  assert.match(operator, /title="Change model"/);
 });
 
 test("renders the read-only tool preset as the active selection", () => {

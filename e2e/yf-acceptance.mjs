@@ -90,7 +90,7 @@ async function main() {
   // is now exactly the spec's deletion set: terminal + git worktree panels
   // plus the host-shell/bash face (R4, owner 拍板移除, operators included) and
   // the web-auth family. yingfang#31（owner 推翻 #28 对应裁决）恢复了 models /
-  // models-config / auth 三族（「模型」tab，仅运营者），从删除面移除；恢复的
+  // models-config / auth 三族（「模型」tab，仅运营者），从删除面移除；不恢复的
   // OAuth login/logout 子路由维持删除（spec non-goals，直访由 Next 404）。
   // Families re-derived from the baseline tree 2481a70 (spec A5 实查), not invented.
   const deletedApiFamilies = [
