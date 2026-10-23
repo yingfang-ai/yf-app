@@ -1,6 +1,6 @@
 export const SETTINGS_SECTION_VALUES = [
   "general",
-  "llm",
+  "models",
   "skills",
   "agents",
   "plugins",
@@ -15,12 +15,13 @@ const PROJECT_SECTIONS = new Set<SettingsSection>(["skills", "agents", "plugins"
 
 /**
  * 运营者才有的设置分区（R5：普通用户的设置只有 general——主题/字号/账号面；
- * LLM 配置、skills 安装、agents、plugins、polyforge 都是运营者面）。一张表一个
+ * 模型配置、skills 安装、agents、plugins、polyforge 都是运营者面）。一张表一个
  * 事实：SettingsPanel 的 tab 导航、移动端下拉与「恢复到不可见分区时回 general」
- * 都经 isSettingsSectionVisible。
+ * 都经 isSettingsSectionVisible。yingfang#31：`llm` 分区随单一通道删除（第 6 步）
+ * 换成 `models`——「模型」tab 顶替原「LLM 服务」的位置。
  */
 const OPERATOR_ONLY_SETTINGS_SECTIONS = new Set<SettingsSection>([
-  "llm",
+  "models",
   "skills",
   "agents",
   "plugins",
@@ -76,7 +77,7 @@ function readState(storage: StorageLike): SettingsNavigationState {
 }
 
 function selectionKey(section: SettingsDetailSection, cwd?: string | null): string | null {
-  if (section === "llm") return section;
+  if (section === "models") return section;
   return cwd ? JSON.stringify([section, cwd]) : null;
 }
 

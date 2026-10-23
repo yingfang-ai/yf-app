@@ -367,6 +367,35 @@ export function getConfiguredProviderCredentials(
 }
 
 /**
+ * yingfang#31 (plan A2): the panel reads and saves MASKED drafts, so a saved
+ * provider's apiKey/header values no longer round-trip through the request.
+ * When the destination gate has approved the operator-configured base URL
+ * (`decision.source === "configuredBaseUrl"`), the stored credential rides
+ * along server-side instead: merged into the temp runtime's provider entry so
+ * getAuth() resolves it exactly like a models.json key. The merge follows the
+ * save face's semantics — 留空保持原值： a non-empty request value overwrites
+ * the stored one, an empty one keeps it.
+ */
+export function mergeConfiguredCredentials(
+  entry: Record<string, unknown>,
+  stored: ModelDiscoveryConfiguredCredentials,
+  attach: boolean,
+): Record<string, unknown> {
+  if (!attach) return entry;
+  const merged: Record<string, unknown> = { ...entry };
+  if (!merged.apiKey && stored.apiKey) merged.apiKey = stored.apiKey;
+  const requestHeaders = isRecord(merged.headers)
+    ? Object.fromEntries(Object.entries(merged.headers).filter(
+      (header): header is [string, string] => typeof header[1] === "string" && header[1] !== "",
+    ))
+    : {};
+  const headers = { ...stored.headers, ...requestHeaders };
+  if (Object.keys(headers).length > 0) merged.headers = headers;
+  else delete merged.headers;
+  return merged;
+}
+
+/**
  * A request-supplied apiKey/header value using config-expression syntax is
  * refused UNLESS it is byte-for-byte identical to what the operator already
  * persisted for that exact provider name (review r2, see module doc): an

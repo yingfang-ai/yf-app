@@ -789,6 +789,10 @@ export const zhCNLocale: LocalePlugin = {
     "models.thinkingSummary": "思考等级：{count}",
     "models.apiOverride": "API 覆盖",
     "models.headers": "Headers",
+    // yingfang#31（spec R4/R7，plan A2/A3）：只写不回显 + 只收字面量的 UI 文案。
+    "models.keyConfigured": "已配置",
+    "models.keyKeepHint": "已配置——留空保存保持原值",
+    "models.apiKeyLiteralHint": "只接受字面量密钥；不支持「!命令」或「$环境变量」表达式写法",
     "models.headersHelp": "仅添加到该模型的请求中，并覆盖 Provider 的同名 Header。",
     "models.compatibility": "兼容性",
     "models.deepSeekThinkingCompat": "DeepSeek 思考兼容",

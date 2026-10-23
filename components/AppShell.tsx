@@ -90,6 +90,7 @@ import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { FileViewerState } from "@/lib/file-viewer-state";
 import { PRESET_READ_ONLY, type ToolEntry } from "@/lib/tool-presets";
 import { getSessionFamily } from "@/lib/session-family";
+import { useYfMe } from "@/hooks/useYfMe";
 import { getLastSettingsSection, type SettingsSection } from "@/lib/settings-navigation";
 
 type SessionCopyField = "file" | "id" | "projectDir" | "gitBranch" | "gitWorktree";
@@ -416,6 +417,10 @@ export function AppShell() {
   const [explorerRefreshKey, setExplorerRefreshKey] = useState(0);
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const [modelsRefreshKey, setModelsRefreshKey] = useState(0);
+  // yingfang#31（spec R5/A6）：底部「模型」快捷按钮仅运营者可见（共享读面 useYfMe，
+  // 不另发请求）；普通用户不渲染、也不经它触发任何 /api/models 请求。
+  const me = useYfMe();
+  const isOperator = me?.operator === true;
   const [projectTrust, setProjectTrust] = useState<ProjectTrustStatus | null>(null);
   const [projectTrustDialogOpen, setProjectTrustDialogOpen] = useState(false);
   const [projectTrustBusy, setProjectTrustBusy] = useState(false);
@@ -1779,9 +1784,10 @@ export function AppShell() {
       />
       <div style={{ padding: "8px", flexShrink: 0, display: "flex", justifyContent: "space-between", gap: 4 }}>
         {([
+          ...(isOperator ? [["models", translate("common.models")]] : []),
           ["skills", translate("common.skills")],
-        ] as const).map(([section, label]) => {
-          const disabled = !projectTrustCwd;
+        ] as [SettingsSection, string][]).map(([section, label]) => {
+          const disabled = section !== "models" && !projectTrustCwd;
           return (
             <button
               key={section}

@@ -350,3 +350,27 @@ test("connection test is operator-only: forged cookie 401, ordinary session 403"
   }));
   assert.equal(ordinary.status, 403);
 });
+
+test("the masked panel flow tests with the stored key at the configured URL (yingfang#31 A2)", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    return sseOkResponse();
+  };
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  // "acme" is saved in models.json with apiKey "configured-key" (the fixture at
+  // the top of this file). The masked panel sends NO key — the stored one must
+  // ride along server-side because the destination is the configured URL.
+  const response = await POST(testModel({
+    providerName: "acme",
+    provider: { baseUrl: "https://acme.example/v1", api: "openai-completions" },
+    model: { id: "m" },
+  }));
+  const payload = await response.json();
+  assert.equal(payload.ok, true, JSON.stringify(payload));
+  assert.equal(new Headers(calls[0].init.headers).get("authorization"), "Bearer configured-key");
+});

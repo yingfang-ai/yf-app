@@ -100,10 +100,11 @@ test("the configured base URL is honored (with trailing-slash tolerance) and the
   assert.deepEqual(payload.models, [{ id: "model-a" }]);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].endpoint, "https://acme.example/v1/models");
-  // Audit S2: no redirect hop, and no credential attached (the request did
-  // not supply one and models.json resolution finds none in the temp file).
+  // Audit S2: no redirect hop. yingfang#31（plan A2）推翻基线的「无凭据」断言：
+  // 面板读回/保存的都是脱敏草稿，保存过的 key 不再随请求回来——目标地址是
+  // 运营者配置地址时，改为服务端把已存 key 并入（mergeConfiguredCredentials）。
   assert.equal(calls[0].options.redirect, "error");
-  assert.equal(new Headers(calls[0].options.headers).get("authorization"), null);
+  assert.equal(new Headers(calls[0].options.headers).get("authorization"), "Bearer configured-key");
 });
 
 test("a request-supplied apiKey travels to the request's own base URL with redirect refusal", async (t) => {
@@ -199,4 +200,29 @@ test("discover is operator-only: forged cookie 401, ordinary session 403", async
     body: JSON.stringify({ providerName: "acme", provider: { baseUrl: "https://acme.example/v1" } }),
   }));
   assert.equal(ordinary.status, 403);
+});
+
+test("the masked panel flow reaches the upstream with the stored key (yingfang#31 A2)", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (endpoint, options) => {
+    calls.push({ endpoint: String(endpoint), options });
+    return new Response(JSON.stringify({ data: [{ id: "model-a" }] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  // The panel sends NO key (masked read-back); the stored one rides along
+  // server-side because the destination is the configured URL.
+  const response = await POST(discover({
+    providerName: "acme",
+    provider: { baseUrl: "https://acme.example/v1", api: "openai-completions" },
+  }));
+  assert.equal(response.status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(new Headers(calls[0].options.headers).get("authorization"), "Bearer configured-key");
 });

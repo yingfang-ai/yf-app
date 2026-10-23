@@ -23,7 +23,8 @@ test("opens one settings panel from direct sidebar shortcuts", () => {
 });
 
 test("keeps every requested configuration surface inside the settings panel", () => {
-  for (const section of ["general", "llm", "skills", "agents", "plugins", "polyforge"]) {
+  // yingfang#31：「模型」分区顶替原「LLM 服务」的位置（spec R2）。
+  for (const section of ["general", "models", "skills", "agents", "plugins", "polyforge"]) {
     assert.match(panelSource, new RegExp(`id: "${section}"`));
   }
   for (const component of ["SkillsConfig", "AgentsConfig", "PluginsConfig"]) {

@@ -5,6 +5,7 @@ import {
   getConfiguredProviderBaseUrl,
   getConfiguredProviderCredentials,
   isConfigExpression,
+  mergeConfiguredCredentials,
   redirectRefusingFetch,
   resolveModelDiscoveryCredentialDecision,
   validateModelDiscoveryModel,
@@ -61,6 +62,7 @@ export async function POST(req: Request) {
     const model = validatedModel.model;
 
     const modelsConfig = readModelsConfig();
+    const storedCredentials = getConfiguredProviderCredentials(providerName, modelsConfig);
 
     // review r2: an expression apiKey/header ("$VAR", "!command") is refused
     // unless it exactly matches what the operator already persisted for this
@@ -94,8 +96,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: decision.reason }, { status: 403 });
     }
     const isRequestKey = decision.source === "requestApiKey";
+    // yingfang#31（plan A2）：面板读回/保存的都是脱敏草稿，保存过的 key 不再随
+    // 请求回来；目标地址已是运营者配置地址时，改由服务端把已存 key/headers 并入
+    // 临时 runtime 的 provider 条目（getAuth 按 models.json 键原样解析）。
+    const attachStoredCredential = !isRequestKey && decision.source === "configuredBaseUrl";
 
-    const providerEntry = (api?: string): Record<string, unknown> => ({
+    const providerEntry = (api?: string): Record<string, unknown> => mergeConfiguredCredentials({
       baseUrl: provider.baseUrl,
       // An explicitly named protocol pins the temp config; an omitted one is
       // left unresolved so the model entry, pi's catalog, or the SDK default
@@ -106,7 +112,7 @@ export async function POST(req: Request) {
       ...(provider.apiKey ? { apiKey: provider.apiKey } : {}),
       ...(Object.keys(provider.headers).length > 0 ? { headers: provider.headers } : {}),
       ...provider.extra,
-    });
+    }, storedCredentials, attachStoredCredential);
 
     const runOutcome = (api?: string) => withTempModelsRuntime(
       providerName,

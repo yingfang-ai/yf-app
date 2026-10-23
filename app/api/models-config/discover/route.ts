@@ -5,6 +5,7 @@ import {
   getConfiguredProviderBaseUrl,
   getConfiguredProviderCredentials,
   isConfigExpression,
+  mergeConfiguredCredentials,
   resolveModelDiscoveryCredentialDecision,
   validateModelDiscoveryProvider,
   verifyConfigExpressionsAreConfigured,
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
     const requestedBaseUrl = provider.baseUrl;
 
     const modelsConfig = readModelsConfig();
+    const storedCredentials = getConfiguredProviderCredentials(providerName, modelsConfig);
 
     // review r2: an expression apiKey/header ("$VAR", "!command") is refused
     // unless it exactly matches what the operator already persisted for this
@@ -91,6 +93,7 @@ export async function POST(req: Request) {
     // providerName (upstream #1006, lib/model-discovery-auth.ts's fallback) —
     // a hardcoded value the request has no way to steer — so there is nothing
     // here for a destination gate to guard against.
+    let attachStoredCredential = false;
     if (requestedBaseUrl) {
       const decision = resolveModelDiscoveryCredentialDecision({
         baseUrl: requestedBaseUrl,
@@ -100,9 +103,13 @@ export async function POST(req: Request) {
       if (!decision.attach) {
         return NextResponse.json({ error: decision.reason }, { status: 403 });
       }
+      // yingfang#31（plan A2）：面板读回/保存的都是脱敏草稿，保存过的 key 不再随
+      // 请求回来；目标地址已是运营者配置地址时，改由服务端把已存 key/headers 并入
+      // 临时 runtime 的 provider 条目（getAuth 按 models.json 键原样解析）。
+      attachStoredCredential = decision.source === "configuredBaseUrl";
     }
 
-    const providerEntry: Record<string, unknown> = {
+    const providerEntry: Record<string, unknown> = mergeConfiguredCredentials({
       ...(requestedBaseUrl ? { baseUrl: requestedBaseUrl } : {}),
       // An explicitly named protocol pins the resolution; an omitted one must
       // reach the SDK unresolved so pi's catalog can supply the provider's
@@ -112,7 +119,7 @@ export async function POST(req: Request) {
       ...(provider.apiKey ? { apiKey: provider.apiKey } : {}),
       ...(Object.keys(provider.headers).length > 0 ? { headers: provider.headers } : {}),
       ...provider.extra,
-    };
+    }, storedCredentials, attachStoredCredential);
 
     let auth: { apiKey?: string; headers: Record<string, string> };
     let effectiveBaseUrl = requestedBaseUrl;
