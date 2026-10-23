@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { findBackend } from "@/lib/yf/backends";
 import type { Draft } from "@/lib/yf/draft";
+import { readCurrentConvId, storeCurrentConvId } from "@/lib/yf/conv-storage";
 import { resumeRound, runDraft, type RoundRef, type WorkflowPhase } from "@/lib/yf/workflow";
 import { RoundResultCard } from "./RoundResultCard";
 
@@ -14,9 +15,10 @@ import { RoundResultCard } from "./RoundResultCard";
  *
  * 重开恢复（D6）：下单后的 {convId, roundId} 记在浏览器 localStorage（key 含会话/
  * 消息位置），重新打开聊天时按它续轮询；落盘幂等，重复续不产生重复文件。
+ * conv id 记在**按用户分键**的 `yf.conv.<user_id>`（lib/yf/conv-storage.ts，
+ * 登出时清）：换号登录不会复用上一个用户的会话（那只会 not_found）。
  */
 const STORAGE_PREFIX = "yf.round.";
-const CONV_KEY = "yf.conv.current";
 
 function readRef(storageKey: string): RoundRef | null {
   try {
@@ -61,8 +63,8 @@ export function DraftConfirmCard({
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    let convId: string | null = null;
-    try { convId = window.localStorage.getItem(CONV_KEY); } catch { /* 无存储则每次新建会话 */ }
+    // 按当前用户分键取 conv（无存储/未记 user_id → null，每次新建会话）。
+    const convId = readCurrentConvId();
     void runDraft(draft, {
       convId,
       signal: controller.signal,
@@ -70,8 +72,8 @@ export function DraftConfirmCard({
       onSubmitted: (ref) => {
         try {
           window.localStorage.setItem(STORAGE_PREFIX + storageKey, JSON.stringify(ref));
-          window.localStorage.setItem(CONV_KEY, ref.convId);
         } catch { /* 存储不可用：本次仍可跑完，只是重开后不续 */ }
+        storeCurrentConvId(ref.convId);
       },
     });
   };

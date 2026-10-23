@@ -37,6 +37,15 @@ test("the chat renders the card only for settled (non-streaming) text blocks wit
   assert.match(source, /draftParse\?\.ok \?/);
 });
 
+test("conv reuse is keyed per user and cleared on logout (no cross-user reuse)", () => {
+  const source = readFileSync(new URL("./DraftConfirmCard.tsx", import.meta.url), "utf8");
+  assert.match(source, /readCurrentConvId\(\)/);
+  assert.match(source, /storeCurrentConvId\(ref\.convId\)/);
+  assert.doesNotMatch(source, /yf\.conv\.current/, "the global conv key must be gone");
+  const login = readFileSync(new URL("../../app/login/page.tsx", import.meta.url), "utf8");
+  assert.match(login, /clearAllConvKeys\(\);/);
+});
+
 test("result card: failed/cancelled are announced in chat, done lists gallery files through the files API", () => {
   assert.match(describePhase({ kind: "ended", roundId: "r", state: "failed" }), /没有生成成功/);
   assert.match(describePhase({ kind: "ended", roundId: "r", state: "cancelled" }), /取消/);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { login, register, YfApiError, YfUnauthorizedError } from "@/lib/yf/api";
+import { clearAllConvKeys } from "@/lib/yf/conv-storage";
 
 type Mode = "login" | "register";
 
@@ -227,13 +228,15 @@ function AuthForm() {
 }
 
 export default function LoginPage() {
-  // 登出后跳回本页（?logout=1）：清掉记住的 user_id。recovery 从不持久化，
-  // 没有可清理的凭据。
+  // 登出后跳回本页（?logout=1）：清掉记住的 user_id 与所有按用户分键的
+  // conv 续接（`yf.conv.*`）——换号登录不复用上一个用户的会话（not_found
+  // 重试循环）。recovery 从不持久化，没有可清理的凭据。
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("logout") === "1") {
       clearSavedUserId();
+      clearAllConvKeys();
     }
   }, []);
   return <AuthForm />;
