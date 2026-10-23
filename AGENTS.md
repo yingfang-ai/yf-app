@@ -7,9 +7,12 @@ pi-web 上游做版本表合并，仓库内不存在任何持续同步脚本或�
 变更不自动进入本仓库。**基线钉在上游 main commit `2481a70`
 （`2481a70b5b9ef23cb38847a7bc79101491446ea5`，2026-10-22 一次性重定基合入，
 yingfang#28）**：pi-web 的整体形态（AppShell、文件浏览器、聊天窗等）随该基线保留
-在产品里；terminal、git worktree、models 配置三面板与主机 shell（terminal 面板与
-agent 的 bash 工具，运营者也没有）按 yingfang#28 的删除面移除。上游 tag 不推
-origin，版本留在 yf-app 0.0.1 纪元，本仓不发版。
+在产品里；terminal、git worktree 两面板与主机 shell（terminal 面板与 agent 的
+bash 工具，运营者也没有）按 yingfang#28 的删除面移除、维持删除。yingfang#31
+（owner 2026-10-23 推翻 #28 对应裁决）恢复了「模型」设置分区与 /api/models*、
+/api/models-config*、/api/auth/api-key|providers 路由族（仅运营者）；OAuth
+登录与 models.dev / pi.dev 目录外联不恢复。上游 tag 不推 origin，版本留在
+yf-app 0.0.1 纪元，本仓不发版。
 
 ## Quick Start
 
@@ -50,18 +53,27 @@ Turbopack; never fall back to `next dev --webpack`.
 ## 硬纪律
 
 - 不改 yingfang 契约（`repos/yingfang/docs/api-contract.md` §2）；yingfang 仓零改动。
-- **LLM key 经 UI 通道（仅运营者）配置后存服务端数据根（0600），只写不回显**：
-  保存后连运营者也只看到「已配置」，可覆盖不可读回；key 不进仓、不进日志、不进
-  普通用户的浏览器可见字节；旧 `YF_LLM_*` 环境变量通道已移除，UI 通道是唯一来源。
+- **模型 provider 的 key 经「模型」tab（仅运营者）配置后存服务端 agent 目录，只写
+  不回显**：自定义 provider 配置存 `<agent 目录>/models.json`、内置 provider key 存
+  `<agent 目录>/auth.json`（均在服务端，0600、原子写、不进 git/构建产物）；保存后
+  连运营者也只看到「已配置」标记，可覆盖不可读回，任何读回接口不出现 key 或
+  headers 值字节；key 不进日志、不进普通用户的浏览器可见字节；apiKey 与 headers
+  值只收字面量（`!命令` / `$VAR` 表达式一律 400）。yingfang#31 移除了单一「LLM
+  服务」通道（`/api/yf/llm-config` 与 `llm/config.json`），「模型」tab 是唯一来源；
+  旧 `YF_LLM_*` 环境变量通道维持移除。
 - **使用面边界**：主机 shell（terminal 面板与 agent 的 bash 工具）已对所有人移除
   （运营者也没有）；普通用户只有聊天栏（引导 skill + 生图 workflow，无写文件工具）
-  + 自己的画廊；skills 安装、plugins、app-update、任意目录浏览、LLM 配置仅运营者
-  可用（普通用户直访 403）。
+  + 自己的画廊；skills 安装、plugins、app-update、任意目录浏览、模型配置（「模型」
+  tab 与 /api/models*、/api/models-config*、/api/auth/api-key|providers）仅运营者
+  可用（普通用户直访 403、匿名 401）。
 - recovery 永不持久化于客户端任何存储；user_id 由 localStorage 记住（`yf.` 前缀）。
 - UI 仅简体中文；桌面优先，窄视口可用即可。
 - 数据根 `YF_DATA_DIR`（缺省 `~/.local/share/yf-app`）：画廊
   `gallery/<user_id>/<conv_id>/<round_id>/`、用户会话目录 `users/<user_id>/`、
-  LLM 配置 `llm/config.json`——全部不进 git。
+  身份索引 `session-index/`——全部不进 git。模型配置不落数据根：自定义 provider
+  配置与内置 provider key 在服务端 agent 目录（`models.json` / `auth.json`，
+  0600、原子写、不进 git/构建产物，见 `lib/models-config-store.ts` /
+  `lib/provider-credential-store.ts`）。
 
 <!-- BEGIN:nextjs-agent-rules -->
 

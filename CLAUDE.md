@@ -9,10 +9,12 @@
   脚本或入口。当前基线为上游 main commit `2481a70`
   （`2481a70b5b9ef23cb38847a7bc79101491446ea5`，yingfang#28 2026-10-22 一次性重定基
   合入）：pi-web 整体形态（AppShell、文件浏览器、聊天窗）随基线保留。
-- 基线之上，terminal、git worktree、models 配置三面板与主机 shell（terminal 面板
-  与 agent 的 bash 工具，运营者也没有）已按 yingfang#28 移除；普通用户只有聊天栏
-  （引导 skill + 生图 workflow）+ 自己的画廊，skills 安装 / plugins / app-update /
-  任意目录浏览 / LLM 配置仅运营者可用。
+- 基线之上，terminal、git worktree 两面板与主机 shell（terminal 面板与 agent 的
+  bash 工具，运营者也没有）已按 yingfang#28 移除、维持删除；yingfang#31（owner
+  推翻 #28 对应裁决）恢复「模型」设置分区与 /api/models*、/api/models-config*、
+  /api/auth/api-key|providers 路由族（仅运营者；OAuth 登录与目录外联不恢复）。
+  普通用户只有聊天栏（引导 skill + 生图 workflow）+ 自己的画廊，skills 安装 /
+  plugins / app-update / 任意目录浏览 / 模型配置仅运营者可用。
 - 任何把仓库「持续升级到 pi-web 新版本」的提议都与本声明冲突，直接拒绝。
 
 ## 产品一句话
@@ -26,9 +28,11 @@ C 端图像创作工作台：邀请码注册 → user_id+recovery 登录 → 聊
 - **不改 yingfang 契约**：`repos/yingfang/docs/api-contract.md` §2 的路由全集是唯一
   对接面；不新增/修改/删除契约端点，不加 SSE/WS、消息持久化、backend 列表端点。
 - 契约错误信封 `{"error":{code,message,details?}}` 按码如实呈现，不吞不改。
-- **LLM key 经 UI 通道（仅运营者）配置后存服务端数据根（0600），只写不回显**：保存后
-  连运营者也只看到「已配置」，可覆盖不可读回；key 不进仓、不进日志、不进普通用户
-  的浏览器可见字节；旧 `YF_LLM_*` 环境变量通道已移除，UI 通道是唯一来源。
+- **模型 provider 的 key 经「模型」tab（仅运营者）配置后存服务端 agent 目录
+  （`models.json` / `auth.json`，0600、原子写），只写不回显**：保存后连运营者也
+  只看到「已配置」标记，可覆盖不可读回；key 不进仓、不进日志、不进普通用户的
+  浏览器可见字节；apiKey 与 headers 值只收字面量。yingfang#31 移除了单一「LLM
+  服务」通道，「模型」tab 是唯一来源；旧 `YF_LLM_*` 环境变量通道维持移除。
 - recovery 永不被任何客户端存储持久化；user_id 由 localStorage 记住（`yf.` 前缀）。
 - 后端/模型清单来自打包内静态配置（`config/backends.json`），运行时零列表网络请求。
 
@@ -49,7 +53,8 @@ Build: `npm run build`
 ```
 app/api/yf/[...path]/route.ts   yingfang 契约同源代理（/api/yf/* → :9701，逐字转发）
 app/api/yf/me/                  当前身份（user_id + operator 判定）
-app/api/yf/llm-config/          单一 LLM 配置通道（仅运营者，key 只写不回显）
+app/api/models*/  app/api/models-config*/  app/api/auth/  「模型」tab 的路由族
+                                 （仅运营者；key 只写不回显，见 docs/agents/models.md）
 app/api/yf/land/                done 轮落盘画廊（presign → 下载 → 原子写）
 app/api/agent/  app/api/sessions/  聊天栏会话面（pi-web 基线形态）
 lib/yf/               yingfang 契约客户端、引导 skill、草案、workflow、画廊
