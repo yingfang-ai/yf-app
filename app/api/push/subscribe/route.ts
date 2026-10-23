@@ -1,5 +1,6 @@
 import { addSubscription, type PushSubscriptionRecord } from "@/lib/web-push";
 import { checkPushEndpoint } from "@/lib/push-endpoint-guards";
+import { requireOperator } from "@/lib/yf/route-policy";
 import { isRecord } from "@/lib/type-guards";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,10 @@ function isSubscriptionShape(subscription: Partial<PushSubscriptionRecord> | und
 
 // POST /api/push/subscribe - register a browser push subscription. Upserts by
 // endpoint, so the client can safely re-send its subscription on every load.
+// 运营者限定（R5/R10）：推送携带会话名与会话 id，订阅面不得对普通用户/匿名开放。
 export async function POST(req: Request): Promise<Response> {
+  const denied = await requireOperator(req);
+  if (denied) return denied;
   let parsed: unknown;
   try {
     parsed = await req.json();

@@ -29,6 +29,7 @@ export const OPERATOR_ONLY_ROUTE_PREFIXES = [
   "/api/tools/settings",
   "/api/provider-usage", // query（读运营者机器上的 provider 凭据）
   "/api/subagents", // profiles、settings、[id]（子代理配置/运行面）
+  "/api/push", // config、subscribe（web-push：订阅者能收到会话名/会话 id 的推送，仅运营者）
 ] as const;
 
 export function isOperatorOnlyRoute(pathname: string): boolean {
