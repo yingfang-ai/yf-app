@@ -321,7 +321,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const dispatch = streamingStore.dispatch;
   const [agentRunning, setAgentRunning] = useState(false);
   const [bashRunning, setBashRunning] = useState(false);
-  const [pendingBash, setPendingBash] = useState<{ command: string; excludeFromContext: boolean } | null>(null);
   const [modelNames] = useState<Record<string, string>>({});
   const [modelList] = useState<ModelEntry[]>([]);
   const [modelError] = useState<string | null>(null);
@@ -388,7 +387,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const isNearBottomRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const liveFollowFrameRef = useRef<number | null>(null);
-  const executeBashRef = useRef<(command: string, excludeFromContext: boolean) => Promise<void> | undefined>(undefined);
   const handleNavigateRef = useRef<((entryId: string) => Promise<boolean>) | undefined>(undefined);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const ensuringNewSessionRef = useRef<Promise<string | null> | null>(null);
@@ -1273,7 +1271,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         if (bashRecoveryIdRef.current !== recoveryId || sessionIdRef.current !== sid) return;
         bashRunningRef.current = false;
         setBashRunning(false);
-        setPendingBash(null);
         return;
       } catch {
         // Keep polling while the page is mounted; network recovery is transparent.
@@ -1670,18 +1667,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
     const isSlashCommandPrompt = !images?.length && trimmedMessage.startsWith("/");
 
-    const isBashCommand = !images?.length && trimmedMessage.startsWith("!");
-    if (isBashCommand) {
-      const isExcluded = trimmedMessage.startsWith("!!");
-      const bashCmd = (isExcluded ? trimmedMessage.slice(2) : trimmedMessage.slice(1)).trim();
-      if (!bashCmd) {
-        restoreSubmission(message, images, composerDraftKey);
-        return;
-      }
-      await executeBashRef.current?.(bashCmd, isExcluded);
-      return;
-    }
-
     const promptRunId = promptRunIdRef.current + 1;
     cancelEventStreamGrace();
     rpcPromptPendingRef.current = true;
@@ -1787,45 +1772,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [isNew, newSessionCwd, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, notifyPromptReloadedFromDisk, cancelEventStreamGrace, closeEvents, composerDraftKey, dispatch, reconcileAgentState, restoreSubmission, editEntryId, setEdit]);
 
-  const executeBash = useCallback(async (command: string, excludeFromContext: boolean) => {
-    if (agentRunningRef.current || bashRunningRef.current) return;
-    const inputText = `${excludeFromContext ? "!!" : "!"}${command}`;
-    bashRunningRef.current = true;
-    setPendingBash({ command, excludeFromContext });
-    setBashRunning(true);
-    try {
-      const sid = sessionIdRef.current ?? session?.id ?? await ensureNewSession();
-      if (!sid) throw new Error("Unable to create a session for the shell command");
-      await sendAgentCommand(sid, {
-        type: "bash",
-        command,
-        excludeFromContext,
-      });
-      await loadSession(sid);
-      promoteNewSession(1, inputText);
-    } catch (e) {
-      console.error("Failed to execute shell command:", e);
-      addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
-      restoreSubmission(inputText, undefined, composerDraftKey);
-    } finally {
-      bashRunningRef.current = false;
-      setPendingBash(null);
-      setBashRunning(false);
-    }
-  }, [addNotice, composerDraftKey, ensureNewSession, loadSession, promoteNewSession, restoreSubmission, session]);
-  executeBashRef.current = executeBash;
-
   const handleAbort = useCallback(async () => {
     const sid = sessionIdRef.current;
     if (!sid) return;
-    if (bashRunningRef.current) {
-      try {
-        await sendAgentCommand(sid, { type: "abort_bash" });
-      } catch (e) {
-        console.error("Failed to abort bash:", e);
-      }
-      return;
-    }
     try {
       await sendAgentCommand(sid, { type: "abort" });
     } catch (e) {
@@ -2676,7 +2625,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     refreshFromDisk,
     scrollToBottom, scrollUserMsgToTop, scrollToMessage, scrollToOffset,
     dispatch, setAgentRunning, setForkingEntryId,
-    bashRunning, pendingBash,
+    bashRunning,
     // Subscriptions
     handleAgentEventRef,
   };

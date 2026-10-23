@@ -37,7 +37,7 @@ test("keeps the session event stream open through the idle grace window", () => 
   );
   const sendSource = source.slice(
     source.indexOf("  const handleSend = useCallback"),
-    source.indexOf("  const executeBash = useCallback"),
+    source.indexOf("  const handleAbort = useCallback"),
   );
 
   assert.match(source, /const EVENT_STREAM_IDLE_GRACE_MS = 30_000/);
@@ -280,7 +280,7 @@ test("first user messages expose both branch actions and edit before their own e
 test("history edits move the branch only when sent, so cancel or reload keeps it", () => {
   const sendSource = source.slice(
     source.indexOf("  const handleSend = useCallback"),
-    source.indexOf("  const executeBash = useCallback"),
+    source.indexOf("  const handleAbort = useCallback"),
   );
 
   assert.doesNotMatch(chatWindowSource, /onNavigate=/);
@@ -307,7 +307,7 @@ test("the selector prefers the live wrapper model over persisted response metada
 test("existing-session prompts rely on the persisted tool selection", () => {
   const sendSource = source.slice(
     source.indexOf("  const handleSend = useCallback"),
-    source.indexOf("  const executeBash = useCallback"),
+    source.indexOf("  const handleAbort = useCallback"),
   );
   const existingSessionPrompt = sendSource.slice(sendSource.indexOf("} else if (session)"));
 
@@ -912,4 +912,27 @@ test("keeps the compaction control reachable while a turn is auto-compacting", (
   // must be gone rather than left as dead branches.
   assert.doesNotMatch(controlBlock, /isStreaming && !isCompacting/);
   assert.match(controlBlock, /cursor: "pointer"/);
+});
+
+test("a !-prefixed message is an ordinary prompt: no client host-shell mode (yingfang#30 B1)", async () => {
+  const zhCNSource = await jitiSource(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url));
+  const sendStart = source.indexOf("  const handleSend = useCallback");
+  const sendEnd = source.indexOf("  const handleAbort = useCallback");
+  assert.ok(sendStart >= 0 && sendEnd > sendStart, "handleSend is followed by handleAbort");
+  const sendSource = source.slice(sendStart, sendEnd);
+  const abortSource = source.slice(sendEnd, source.indexOf("  const handleFork = useCallback"));
+
+  // Send path: nothing diverts a leading "!" away from the prompt RPC.
+  assert.doesNotMatch(sendSource, /startsWith\("!/);
+  assert.doesNotMatch(sendSource, /executeBash/);
+  assert.match(sendSource, /type: "prompt",\s*message,/);
+  // The client never issues the removed host-shell commands.
+  assert.doesNotMatch(source, /type: "(abort_)?bash"/);
+  assert.doesNotMatch(source, /executeBash|pendingBash/);
+  assert.match(abortSource, /type: "abort" \}/);
+  // Composer: no "!" mode detection, no Shell indicator, no Shell copy.
+  assert.doesNotMatch(chatInputSource, /startsWith\("!/);
+  assert.doesNotMatch(chatInputSource, /bashMode|bashExcluded|chat\.shell|chat\.output(Local|Model)/);
+  assert.doesNotMatch(chatWindowSource, /pendingBash/);
+  assert.doesNotMatch(zhCNSource, /"chat\.shell"|"chat\.output(Local|Model)"/);
 });
