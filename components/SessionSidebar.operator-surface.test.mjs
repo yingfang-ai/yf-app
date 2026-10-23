@@ -33,3 +33,13 @@ test("both DirectoryPicker surfaces render only for operators", () => {
   assert.doesNotMatch(source, /\{customPathOpen && \(/);
   assert.doesNotMatch(source, /\{addDirectoryOpen && \(/);
 });
+
+test("the ordinary user's explorer gets their own gallery section (R10 读面)", () => {
+  assert.match(source, /import \{ ownGallerySection \} from "@\/lib\/yf\/gallery-section";/);
+  const roots = source.indexOf("const explorerRoots = useMemo(");
+  assert.ok(roots > 0);
+  const body = source.slice(roots, roots + 900);
+  assert.match(body, /const gallery = ownGallerySection\(me\);/);
+  assert.match(body, /gallery \? \[\.\.\.pinnedProjects, gallery\] : pinnedProjects/);
+  assert.match(body, /\[pinnedProjects, explorerSelection, listedEntryForPath, me\]/);
+});

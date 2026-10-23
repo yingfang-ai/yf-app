@@ -33,6 +33,7 @@ import {
   createRowPathRenameHandler,
 } from "@/lib/custom-directory-manage";
 import { buildExplorerRoots } from "@/lib/explorer-roots";
+import { ownGallerySection } from "@/lib/yf/gallery-section";
 import {
   computeFilteredSessionIds,
   countFilteredSessions,
@@ -1707,12 +1708,16 @@ export function SessionSidebar({ selectedSessionId, highlightSessionId, followHi
   // are different identities). Store mutations bump pinnedRevision, so a
   // removed entry's section disappears immediately with the other sections'
   // expansion state intact.
+  //
+  // R10 读面（owner 决定 6）：普通用户在 pinned 分区之外还有自己的画廊分区
+  // （服务端布局，经 /api/yf/me 的 gallery_root 带来；运营者不折）。
   const explorerRoots = useMemo(
     () => {
       const owning = explorerSelection ? listedEntryForPath(explorerSelection.root) : null;
-      return buildExplorerRoots(pinnedProjects, owning ?? explorerSelection);
+      const gallery = ownGallerySection(me);
+      return buildExplorerRoots(gallery ? [...pinnedProjects, gallery] : pinnedProjects, owning ?? explorerSelection);
     },
-    [pinnedProjects, explorerSelection, listedEntryForPath],
+    [pinnedProjects, explorerSelection, listedEntryForPath, me],
   );
   // Pin/unpin now operate on the custom directory store, leaving exactly
   // one user-managed list: pin adds the project root at the head, unpin

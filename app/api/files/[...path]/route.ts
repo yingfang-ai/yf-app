@@ -649,6 +649,11 @@ export async function GET(
       stat = fs.statSync(filePath);
     } catch {
       if (type !== "watch") {
+        // 还不存在的目录（如尚未落过图的画廊根，R10）在允许根之内 → 空列表而
+        // 不是 404：画廊从第一眼就可浏览，落图后条目自然出现。
+        if (type === "list" && allowedByRoot) {
+          return NextResponse.json({ entries: [], path: filePath });
+        }
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
     }
