@@ -3,8 +3,8 @@
 # one-time publish credential, so no npm token secret exists to leak, expire,
 # or trip 2FA. Triggered by pushing a v* tag (e.g. v0.0.21). The published
 # identity is this repo's own package.json (name: yf-app) — yf-app is a
-# permanent fork of silgrid/pi-web v0.0.20 and does not publish, follow, or
-# merge from the upstream project.
+# permanent fork of silgrid/pi-web (baseline upstream main commit 2481a70) and
+# does not publish, follow, or merge from the upstream project.
 #
 # Prerequisite (one-time, npmjs.com console): the package `yf-app` has a
 # Trusted Publisher configured for repository `yingfang-ai/yf-app` and
