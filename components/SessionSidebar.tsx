@@ -60,6 +60,7 @@ import { workspaceKeyOf } from "@/lib/workspace-memory";
 import { formatRelativeTime } from "@/lib/i18n/format";
 import { useI18n } from "@/hooks/useI18n";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useYfMe } from "@/hooks/useYfMe";
 import { useFilesPlacement } from "@/lib/files-placement";
 import { RunningSessionIndicator } from "@/components/RunningSessionIndicator";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
@@ -958,6 +959,11 @@ export function SessionSidebar({ selectedSessionId, highlightSessionId, followHi
   // list, registers it as an allowed file root, and can rename/remove list
   // entries and create folders from the dialog.
   const [addDirectoryOpen, setAddDirectoryOpen] = useState(false);
+  // 运营者身份（共享读面 useYfMe，R5）：任意目录浏览（custom-path/add-directory
+  // DirectoryPicker）与目录登记是运营者面——普通用户的侧边栏没有这些入口。
+  // 身份未加载（me=null）时按普通用户处理，不闪运营者入口。
+  const me = useYfMe();
+  const isOperator = me?.operator === true;
   const [explorerOpen, setExplorerOpen] = useState(true);
   // Sessions | Files layout (wi B3): "stacked" is the classic split (the
   // default and today's behavior — sessions pane, drag handle, explorer
@@ -2172,8 +2178,9 @@ export function SessionSidebar({ selectedSessionId, highlightSessionId, followHi
           (commitCustomPath) — picking a directory never registers it.
           Browse rows carry no manage actions; the buttons render only on
           the registered-entries rows because manage mode is
-          `entries !== undefined`. */}
-      {customPathOpen && (
+          `entries !== undefined`. 运营者限定（R5）：任意目录 browsing 是
+          运营者面，普通用户不渲染。 */}
+      {isOperator && customPathOpen && (
         <DirectoryPicker
           initialPath={customPathValue}
           busy={customPathValidating}
@@ -2218,8 +2225,9 @@ export function SessionSidebar({ selectedSessionId, highlightSessionId, followHi
           the custom list and registers it as an allowed file root; the
           dialog's manage callbacks run the guarded seams above (wi pi#52),
           so delete/rename from the picker behave exactly like the other
-          surfaces and report typed refusals back into the dialog. */}
-      {addDirectoryOpen && (
+          surfaces and report typed refusals back into the dialog.
+          运营者限定（R5）：目录登记是运营者面。 */}
+      {isOperator && addDirectoryOpen && (
         <DirectoryPicker
           initialPath={customPathValue || homeDir || undefined}
           entries={pinnedEntries.map((entry) => ({ path: entry.path, displayName: entry.displayName }))}
@@ -2310,8 +2318,11 @@ export function SessionSidebar({ selectedSessionId, highlightSessionId, followHi
                 row, level with refresh and search — the standalone
                 full-width button below is gone. Same 32px icon-button
                 styling, same label, same behavior: opens the directory
-                picker in manage mode. */}
-            <button
+                picker in manage mode. 运营者限定（R5，verification rewind
+                fix 2）：目录登记/任意目录浏览是运营者面，普通用户没有
+                这个入口（身份未加载时也不渲染，不闪）。 */}
+            {isOperator && (
+              <button
               type="button"
               onClick={() => setAddDirectoryOpen(true)}
               title={t("sidebar.addNew")}
@@ -2325,6 +2336,7 @@ export function SessionSidebar({ selectedSessionId, highlightSessionId, followHi
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </button>
+            )}
           </div>
         </div>
 

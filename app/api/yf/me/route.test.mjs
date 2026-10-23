@@ -54,6 +54,15 @@ test("an operator user_id (env union) is reported as operator", async () => {
   assert.equal((await response.json()).operator, true);
 });
 
+test("the answer carries the user's own gallery root (R10 读面：文件浏览器画廊分区)", async () => {
+  const response = await get("yf_session=tok-plain");
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.gallery_root, path.join(dataRoot, "gallery", "0".repeat(32)));
+  // 只带自己的画廊根，不带别人的（也不带名单）。
+  assert.equal(JSON.stringify(payload).includes(path.join(dataRoot, "gallery", "f".repeat(32))), false);
+});
+
 test("expires_at is recorded but not re-judged here (yingfang + the cookie's own lifetime own expiry)", async () => {
   writeSessionIndex(dataRoot, "tok-past", { user_id: "1".repeat(32), expires_at: "2020-01-01T00:00:00Z" });
   assert.equal((await get("yf_session=tok-past")).status, 200);

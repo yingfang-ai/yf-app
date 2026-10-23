@@ -17,8 +17,10 @@ import {
 import { useEnterSendMode, setEnterSendMode } from "@/hooks/useEnterSendMode";
 import {
   setLastSettingsSection,
+  isSettingsSectionVisible,
   type SettingsSection,
 } from "@/lib/settings-navigation";
+import { useYfMe } from "@/hooks/useYfMe";
 import {
   isThinkingExpandedByDefault,
   setThinkingExpandedByDefault,
@@ -90,6 +92,10 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
   const [pushStatus, setPushStatus] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  // 运营者身份（共享读面）：推送注册是运营者面（/api/push 运营者限定），
+  // 普通用户不渲染这个入口。
+  const me = useYfMe();
+  const pushSurfaceOperator = me?.operator === true;
   // Session filter (wi pi#49 R1): the editor is line-per-rule. The initial
   // state is the default list (SSR-safe, no storage read) and the real
   // persisted value hydrates after mount — the same pattern as the other
@@ -392,8 +398,9 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
         </div>
       </section>
 
-      <section className="settings-general-section">
-        <h3 className="settings-general-heading">{t("settings.pushPermission")}</h3>
+      {pushSurfaceOperator && (
+        <section className="settings-general-section">
+          <h3 className="settings-general-heading">{t("settings.pushPermission")}</h3>
         <p className="settings-general-description">{t("settings.pushPermissionDescription")}</p>
         <div className="settings-shell-option">
           <span>{t("settings.pushPermission")}</span>
@@ -415,7 +422,8 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
             {pushStatus.message}
           </p>
         )}
-      </section>
+        </section>
+      )}
 
       {supportedLocales.length > 1 && (
         <section className="settings-general-section">
@@ -463,29 +471,21 @@ export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessi
   const [mountedSections, setMountedSections] = useState<ReadonlySet<SettingsSection>>(
     () => new Set([section]),
   );
-  const [isOperator, setIsOperator] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/yf/me")
-      .then(async (response) => {
-        if (!response.ok) return;
-        const data = await response.json() as { operator?: boolean };
-        if (!cancelled && data.operator === true) setIsOperator(true);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // 运营者身份（共享读面 useYfMe）：运营者才有的设置分区（llm/skills/agents/
+  // plugins/polyforge，R5）对普通用户不存在——tab、移动端下拉与恢复部都不可见。
+  const me = useYfMe();
+  const isOperator = me?.operator === true;
 
-  const sections: { id: SettingsSection; label: string; requiresProject: boolean }[] = [
+  const allSections: { id: SettingsSection; label: string; requiresProject: boolean }[] = [
     { id: "general", label: t("settings.general"), requiresProject: false },
-    ...(isOperator ? [{ id: "llm" as const, label: "LLM 服务", requiresProject: false }] : []),
+    { id: "llm", label: "LLM 服务", requiresProject: false },
     { id: "skills", label: t("common.skills"), requiresProject: true },
     { id: "agents", label: t("common.agents"), requiresProject: true },
     { id: "plugins", label: t("common.plugins"), requiresProject: true },
     { id: "polyforge", label: t("polyforge.title"), requiresProject: false },
   ];
+  // 运营者才有的分区（isSettingsSectionVisible 一张表）对普通用户不存在。
+  const sections = allSections.filter((item) => isSettingsSectionVisible(item.id, isOperator));
 
   useEffect(() => setLastSettingsSection(initialSection), [initialSection]);
 
@@ -506,13 +506,25 @@ export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessi
     setLastSettingsSection("general");
   }, [cwd, section]);
 
+  // 恢复到的分区对当前身份不可见（普通用户恢复了运营者分区）→ 回 general。
+  // 身份未加载（me=null）时按普通用户处理，不闪运营者面。
+  useEffect(() => {
+    if (isSettingsSectionVisible(section, isOperator)) return;
+    setSection("general");
+    setMountedSections((current) => new Set(current).add("general"));
+    setLastSettingsSection("general");
+  }, [section, isOperator]);
+
   const activateSection = (nextSection: SettingsSection) => {
     setMountedSections((current) => new Set(current).add(nextSection));
     setSection(nextSection);
     setLastSettingsSection(nextSection);
   };
 
-  const sectionHost = (id: SettingsSection, content: ReactNode) => mountedSections.has(id) ? (
+  // 分区内容宿主：只有「已 mount 且对当前身份可见」的分区才渲染——普通用户
+  // 恢复到了运营者分区时（身份未加载完），不闪运营者内容（tab 已不可见）。
+  const visibleSectionIds = new Set(sections.map((item) => item.id));
+  const sectionHost = (id: SettingsSection, content: ReactNode) => visibleSectionIds.has(id) && mountedSections.has(id) ? (
     <div
       key={id}
       hidden={section !== id}

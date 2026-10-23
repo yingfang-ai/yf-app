@@ -13,6 +13,24 @@ export type SettingsDetailSection = Exclude<SettingsSection, "general">;
 const STORAGE_KEY = "pi-web:settings-navigation";
 const PROJECT_SECTIONS = new Set<SettingsSection>(["skills", "agents", "plugins"]);
 
+/**
+ * 运营者才有的设置分区（R5：普通用户的设置只有 general——主题/字号/账号面；
+ * LLM 配置、skills 安装、agents、plugins、polyforge 都是运营者面）。一张表一个
+ * 事实：SettingsPanel 的 tab 导航、移动端下拉与「恢复到不可见分区时回 general」
+ * 都经 isSettingsSectionVisible。
+ */
+const OPERATOR_ONLY_SETTINGS_SECTIONS = new Set<SettingsSection>([
+  "llm",
+  "skills",
+  "agents",
+  "plugins",
+  "polyforge",
+]);
+
+export function isSettingsSectionVisible(section: SettingsSection, operator: boolean): boolean {
+  return operator || !OPERATOR_ONLY_SETTINGS_SECTIONS.has(section);
+}
+
 interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
