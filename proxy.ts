@@ -19,9 +19,10 @@ const PRE_AUTH_API = /^\/api\/yf\/(register|login)$/;
 // （不让登录门把「已删除」伪装成「需要登录」）。放行到路由层由 Next 回 404。
 // yingfang#31（spec R1）：models / models-config / auth 三族随「模型」tab 恢复，
 // 从删除面移除（owner 推翻 #28 对应裁决）；terminal / worktrees / web-auth 与
-// agent bash-output 维持删除。恢复的三族由 yf 门（匿名 401）+ requireOperator
-// （普通用户 403）管可见性。
-const DELETED_API = /^\/api\/(terminal|worktrees|web-auth)(\/|$)|^\/api\/agent\/[^/]+\/bash-output(\/|$)/;
+// agent bash-output 维持删除。已移除的单一「LLM 服务」通道（/api/yf/llm-config，
+// 路由已物理删除）按同口径放行到 Next 404——匿名与登录请求一样得 404，不让
+// 登录门把「已删除」伪装成「需要登录」。
+const DELETED_API = /^\/api\/(terminal|worktrees|web-auth)(\/|$)|^\/api\/yf\/llm-config(\/|$)|^\/api\/agent\/[^/]+\/bash-output(\/|$)/;
 
 export function proxy(request: NextRequest) {
   const isApiRequest = request.nextUrl.pathname === "/api"
