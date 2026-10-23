@@ -1,7 +1,8 @@
 // yingfang 契约客户端：全部走同源 fetch（cookie 自然携带，无跨源凭据方案）。
 //
-// 路由全集 = repos/yingfang/docs/api-contract.md §2。yf-app 不依赖契约之外的任何
-// yingfang 端点；`POST /api/guide` 是 yf-app 自己的服务端面，不在这里。
+// 路由全集 = repos/yingfang/docs/api-contract.md §2，整体挂在 yf-app 自己的
+// `/api/yf` 前缀下（plan D1，由 app/api/yf/[...path]/route.ts 同源代理）；yf-app 不依赖
+// 契约之外的任何 yingfang 端点。
 import type {
   ConvSummary,
   ErrorDetail,
@@ -92,7 +93,7 @@ function jsonBody(payload: unknown): string {
 
 /** POST /api/register —— 凭邀请码注册。201 → {user_id}。 */
 export async function register(request: RegisterRequest): Promise<RegisterResponse> {
-  const response = await yfFetch("/api/register", {
+  const response = await yfFetch("/api/yf/register", {
     method: "POST",
     body: jsonBody(request),
   });
@@ -101,7 +102,7 @@ export async function register(request: RegisterRequest): Promise<RegisterRespon
 
 /** POST /api/login —— 登录；会话经 yf_session cookie 建立。 */
 export async function login(request: LoginRequest): Promise<LoginResponse> {
-  const response = await yfFetch("/api/login", {
+  const response = await yfFetch("/api/yf/login", {
     method: "POST",
     body: jsonBody(request),
   });
@@ -110,33 +111,10 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
 
 /** POST /api/logout —— 登出（幂等）。 */
 export async function logout(): Promise<void> {
-  const response = await yfFetch("/api/logout", { method: "POST" });
+  const response = await yfFetch("/api/yf/logout", { method: "POST" });
   if (!response.ok) {
     throw await yfApiErrorFrom(response);
   }
-}
-
-// ---------------------------------------------------------------------------
-// yf-app 自有面（非 yingfang 契约端点）
-// ---------------------------------------------------------------------------
-
-export interface GuideTurnPayload {
-  role: "user" | "assistant";
-  content: string;
-}
-
-export interface GuideResponse {
-  reply: string;
-  draft: import("./guide-protocol").GuideDraft | null;
-}
-
-/** POST /api/guide —— yf-app 服务端的引导代理（LLM 调用全在服务端）。 */
-export async function guide(body: { messages: GuideTurnPayload[] }): Promise<GuideResponse> {
-  const response = await yfFetch("/api/guide", {
-    method: "POST",
-    body: jsonBody(body),
-  });
-  return expectJson<GuideResponse>(response);
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +123,7 @@ export async function guide(body: { messages: GuideTurnPayload[] }): Promise<Gui
 
 /** POST /api/convs —— 建会话（conv_id 服务端生成）。 */
 export async function createConv(title?: string): Promise<{ conv_id: string }> {
-  const response = await yfFetch("/api/convs", {
+  const response = await yfFetch("/api/yf/convs", {
     method: "POST",
     body: jsonBody(title === undefined ? {} : { title }),
   });
@@ -154,7 +132,7 @@ export async function createConv(title?: string): Promise<{ conv_id: string }> {
 
 /** GET /api/convs —— 列自己的会话（全量，空 → []）。 */
 export async function listConvs(): Promise<ConvSummary[]> {
-  const response = await yfFetch("/api/convs", { method: "GET" });
+  const response = await yfFetch("/api/yf/convs", { method: "GET" });
   const payload = await expectJson<{ convs: ConvSummary[] }>(response);
   return payload.convs;
 }
@@ -171,7 +149,7 @@ export async function submitRound(
   convId: string,
   request: SubmitRequest,
 ): Promise<SubmitRoundResponse> {
-  const response = await yfFetch(`/api/convs/${encodeURIComponent(convId)}/rounds`, {
+  const response = await yfFetch(`/api/yf/convs/${encodeURIComponent(convId)}/rounds`, {
     method: "POST",
     body: jsonBody(request),
   });
@@ -180,7 +158,7 @@ export async function submitRound(
 
 /** GET /api/rounds/{round_id} —— 取一轮（轮询唯一状态源）。 */
 export async function getRound(roundId: string): Promise<Round> {
-  const response = await yfFetch(`/api/rounds/${encodeURIComponent(roundId)}`, {
+  const response = await yfFetch(`/api/yf/rounds/${encodeURIComponent(roundId)}`, {
     method: "GET",
   });
   return expectJson<Round>(response);
@@ -189,7 +167,7 @@ export async function getRound(roundId: string): Promise<Round> {
 /** GET /api/convs/{conv_id}/tree —— 会话树（平面列表）。 */
 export async function getConvTree(convId: string): Promise<RoundTree[]> {
   const response = await yfFetch(
-    `/api/convs/${encodeURIComponent(convId)}/tree`,
+    `/api/yf/convs/${encodeURIComponent(convId)}/tree`,
     { method: "GET" },
   );
   const payload = await expectJson<{ rounds: RoundTree[] }>(response);
@@ -207,7 +185,7 @@ export async function selectImage(
   epoch: number,
 ): Promise<SelectImageResponse> {
   const response = await yfFetch(
-    `/api/rounds/${encodeURIComponent(roundId)}/images/${idx}/${epoch}/select`,
+    `/api/yf/rounds/${encodeURIComponent(roundId)}/images/${idx}/${epoch}/select`,
     { method: "POST" },
   );
   return expectJson<SelectImageResponse>(response);
@@ -220,13 +198,13 @@ export async function presignImage(
   epoch: number,
 ): Promise<PresignResponse> {
   const response = await yfFetch(
-    `/api/rounds/${encodeURIComponent(roundId)}/images/${idx}/${epoch}/presign`,
+    `/api/yf/rounds/${encodeURIComponent(roundId)}/images/${idx}/${epoch}/presign`,
     { method: "POST" },
   );
   return expectJson<PresignResponse>(response);
 }
 
-/** 契约端点的命名集合（`POST /api/guide` 是 yf-app 自有面，不在此列）。 */
+/** 契约端点的命名集合（yf-app 自有面在各自路由，不在此列）。 */
 export const yfApi = {
   register,
   login,

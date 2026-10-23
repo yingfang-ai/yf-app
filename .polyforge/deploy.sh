@@ -12,13 +12,10 @@
 #   —— 主机侧锁（flock）：同一部署根上并发部署直接拒绝；
 #   —— 失败自动回滚：健康检查不过 ⇒ 停新服务、current 指回上一个版本、重启，
 #      procedure 以「新版本在线」或「已回滚」结束，回滚 = 本脚本 exit 非零；
-# 凭据两分（合同不变，位置更新）：tag-push 凭据（git）与运行时凭据
-# （~/.config/yf-app/env 里的 YF_LLM_*，引导代理的 key）彼此独立，
-# 后者永不进仓库、永不进部署产物。
-#
-# fail closed（缺配置 = 拒绝部署，而不是部署一个起不来/没引导的实例）：
-#   ~/.config/yf-app/env 必须存在且 YF_LLM_API_KEY 非空。这个检查发生在
-#   **构建之前**，所以一次缺 key 的部署不会留下任何构建产物。
+# 凭据两分（合同不变，位置更新）：tag-push 凭据（git）与运行时配置
+# （~/.config/yf-app/env：YF_DATA_DIR / YF_API_UPSTREAM / YF_OPERATOR_USER_IDS 等，
+# 可选）彼此独立，后者永不进仓库、永不进部署产物。LLM 的 key 不在这里：它由运营者
+# 经设置里的「LLM 服务」通道配置、存数据根（0600，yingfang#28 R3），部署不再带 key。
 #
 # 本地部署形态（对应 docs/deploy.md 的同源反代拓扑，本机 pilot 版）：
 #
@@ -143,12 +140,10 @@ git rev-parse -q --verify "$TAG^{commit}" >/dev/null || die "$TAG does not resol
 TAG_VERSION="$(git show "$TAG:package.json" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version' 2>/dev/null || true)"
 [ "$TAG_VERSION" = "$VERSION" ] || die "package.json at $TAG is '${TAG_VERSION:-unreadable}', expected '$VERSION' — refusing to deploy a version that does not match its own tag"
 
-# ─── fail closed：运行环境在构建之前检查 ─────────────────────────────────────
+# ─── 运行环境（可选）──────────────────────────────────────────────────────────
 # XDG 配置位（~/.config/yf-app/env），与部署产物分离：releases 会被轮转清理，
-# 凭据不随产物走。可用 YF_APP_ENV_FILE 覆盖。
+# 配置不随产物走。可用 YF_APP_ENV_FILE 覆盖；文件不存在则用缺省值。
 ENV_FILE="${YF_APP_ENV_FILE:-$HOME/.config/yf-app/env}"
-[ -f "$ENV_FILE" ] || die "missing $ENV_FILE — create it first (see docs/deploy.md: YF_LLM_API_KEY required; the key never enters the repo or any release dir)"
-grep -Eq '^YF_LLM_API_KEY=.+' "$ENV_FILE" || die "$ENV_FILE lacks a non-empty YF_LLM_API_KEY — refusing to deploy a guide-less instance (fail closed)"
 
 # ─── 幂等命中 ─────────────────────────────────────────────────────────────────
 REL="$DEPLOY_ROOT/releases/$VERSION"
@@ -197,7 +192,7 @@ start_server() {
   # setsid：服务进程脱离部署调用的进程组——部署命令被中断/杀死时
   # 不连坐服务（nohup 只掋 SIGHUP，掋不掉整组 SIGTERM）。
   ( cd "$DEPLOY_ROOT/$target" && \
-    set -a && . "$ENV_FILE" && set +a && \
+    set -a && { [ ! -f "$ENV_FILE" ] || . "$ENV_FILE"; } && set +a && \
     setsid nohup node_modules/.bin/next start -H "$HOST" -p "$PORT" \
       >> "$DEPLOY_ROOT/state/app.log" 2>&1 & echo $! > "$DEPLOY_ROOT/state/app.pid" )
 }

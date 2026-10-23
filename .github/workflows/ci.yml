@@ -60,9 +60,16 @@ jobs:
         working-directory: repos/yf-app
       - run: node e2e/yf-acceptance.mjs
         working-directory: repos/yf-app
+      # Behavior bar (e2e/yf-behavior.mjs): in-test contract + LLM stubs, no
+      # real yingfang or credentials; runs its own dev server (YF_DATA_DIR /
+      # YF_API_UPSTREAM / YF_OPERATOR_USER_IDS test seams).
+      - run: node e2e/yf-behavior.mjs
+        working-directory: repos/yf-app
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: e2e-failure
-          path: repos/yf-app/test-results/e2e-yf/
+          path: |
+            repos/yf-app/test-results/e2e-yf/
+            repos/yf-app/test-results/e2e-yf-behavior/
           retention-days: 7

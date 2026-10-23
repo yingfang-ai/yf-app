@@ -1,0 +1,594 @@
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
+import { useI18n } from "@/hooks/useI18n";
+import { useTheme } from "@/hooks/useTheme";
+import { THEME_OPTIONS } from "@/lib/theme";
+import { ThemeIcon } from "./ThemeIcon";
+import {
+  CHAT_CONTENT_WIDTH_DEFAULT,
+  CHAT_CONTENT_WIDTH_MAX,
+  CHAT_CONTENT_WIDTH_MIN,
+  CHAT_CONTENT_FONT_SIZE_DEFAULT,
+  CHAT_CONTENT_FONT_SIZE_MAX,
+  CHAT_CONTENT_FONT_SIZE_MIN,
+  useChatAppearance,
+} from "@/hooks/useChatAppearance";
+import { useEnterSendMode, setEnterSendMode } from "@/hooks/useEnterSendMode";
+import {
+  setLastSettingsSection,
+  isSettingsSectionVisible,
+  type SettingsSection,
+} from "@/lib/settings-navigation";
+import { useYfMe } from "@/hooks/useYfMe";
+import {
+  isThinkingExpandedByDefault,
+  setThinkingExpandedByDefault,
+} from "@/lib/thinking-expansion-preference";
+import { LlmConfigCard } from "./yf/LlmConfigCard";
+import { setupPushSubscription } from "@/lib/push-client";
+import {
+  setFilesPlacement,
+  useFilesPlacement,
+} from "@/lib/files-placement";
+import {
+  DEFAULT_SESSION_FILTER_PATTERNS,
+  loadSessionFilterPatterns,
+  loadShowFilteredSessions,
+  setSessionFilterPatterns,
+  setShowFilteredSessions,
+  sessionFilterStorage,
+  getSessionFilterState,
+  DEFAULT_SESSION_AGE_FILTER_DAYS,
+  setSessionAgeFilterDays,
+} from "@/lib/session-filter";
+import { SkillsConfig } from "./SkillsConfig";
+import { AgentsConfig } from "./AgentsConfig";
+import { PluginsConfig } from "./PluginsConfig";
+import { PolyforgeConfig } from "./PolyforgeConfig";
+import { ConfigButton, ConfigSwitch } from "./SettingsUi";
+import { FontSettings } from "./FontSettings";
+
+interface Props {
+  cwd: string | null;
+  sessionId: string | null;
+  initialSection: SettingsSection;
+  onClose: () => void;
+  onSessionReloaded: () => void;
+  quoteSelectionEnabled: boolean;
+  onQuoteSelectionChange: (enabled: boolean) => void;
+}
+
+export function SettingsSectionIcon({ section, size = 16, strokeWidth = 1.8 }: { section: SettingsSection; size?: number; strokeWidth?: number }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+    className: "settings-section-icon",
+  };
+
+  if (section === "general") return <svg {...common}><path d="M20 7h-9M14 17H5" /><circle cx="7" cy="7" r="3" /><circle cx="17" cy="17" r="3" /></svg>;
+  if (section === "llm") return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5 19 19M19 5l-2.5 2.5M7.5 16.5 5 19" /></svg>;
+  if (section === "skills") return <svg {...common}><path d="m12 2-10 5 10 5 10-5-10-5Z" /><path d="m2 12 10 5 10-5M2 17l10 5 10-5" /></svg>;
+  if (section === "agents") return <svg {...common} className="settings-section-icon is-agent"><rect x="5" y="7" width="14" height="11" rx="2" /><path d="M9 11h.01M15 11h.01M9 15h6M12 7V4M10 4h4" /></svg>;
+  if (section === "plugins") return <svg {...common}><path d="M9 7V2M15 7V2M6 13V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v5a6 6 0 0 1-12 0ZM12 19v3" /></svg>;
+  return <svg {...common}><circle cx="6" cy="18" r="3" /><circle cx="18" cy="6" r="3" /><path d="M6 15V3M18 9a9 9 0 0 1-9 9" /></svg>;
+}
+
+function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, onQuoteSelectionChange }: Pick<Props, "sessionId" | "onSessionReloaded" | "quoteSelectionEnabled" | "onQuoteSelectionChange">) {
+  const { locale, setLocale, supportedLocales, t } = useI18n();
+  const { preference, setThemePreference } = useTheme();
+  const { width: chatContentWidth, setWidth: setChatContentWidth, fontSize, setFontSize } = useChatAppearance();
+  const enterSendMode = useEnterSendMode();
+  const filesPlacement = useFilesPlacement();
+  const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [pushRegistering, setPushRegistering] = useState(false);
+  const [pushStatus, setPushStatus] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  // 运营者身份（共享读面）：推送注册是运营者面（/api/push 运营者限定），
+  // 普通用户不渲染这个入口。
+  const me = useYfMe();
+  const pushSurfaceOperator = me?.operator === true;
+  // Session filter (wi pi#49 R1): the editor is line-per-rule. The initial
+  // state is the default list (SSR-safe, no storage read) and the real
+  // persisted value hydrates after mount — the same pattern as the other
+  // client-persisted toggles. Saving happens on every change; the FIRST
+  // render never writes the key, so a fresh install keeps the default as a
+  // display value only.
+  const [sessionFilterRulesText, setSessionFilterRulesText] = useState(
+    () => DEFAULT_SESSION_FILTER_PATTERNS.join("\n"),
+  );
+  const [showFilteredSessions, setShowFilteredSessionsState] = useState(false);
+  // Session age window (pi#82): hydrated after mount like the other
+  // client-persisted values; every change persists through the shared store
+  // so the sidebar (and this field) update without a reload.
+  const [ageFilterDays, setAgeFilterDaysState] = useState(DEFAULT_SESSION_AGE_FILTER_DAYS);
+
+  useEffect(() => {
+    setSessionFilterRulesText(loadSessionFilterPatterns(sessionFilterStorage()).join("\n"));
+    setShowFilteredSessionsState(loadShowFilteredSessions(sessionFilterStorage()));
+    setAgeFilterDaysState(getSessionFilterState().ageFilterDays);
+  }, []);
+
+  useEffect(() => {
+    setThinkingExpanded(isThinkingExpandedByDefault());
+  }, []);
+
+  const logOut = async () => {
+    setLoggingOut(true);
+    setLogoutError("");
+    try {
+      // yf 会话登出：契约端点经 /api/yf 代理，cookie 由代理回传清除（Max-Age=0）。
+      const response = await fetch("/api/yf/logout", { method: "POST" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      window.location.replace("/login?logout=1");
+    } catch {
+      setLogoutError(t("auth.logoutFailed"));
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
+  // Session filter persistence: every edit rewrites the persisted array
+  // (splitting on newlines — one rule per line); the reveal toggle persists
+  // under its own key. Both are best-effort against unavailable storage.
+  const handleSessionFilterRulesChange = (value: string) => {
+    setSessionFilterRulesText(value);
+    // Live store: the sidebar subscribes and re-filters immediately.
+    setSessionFilterPatterns(value.split("\n"));
+  };
+
+  const handleShowFilteredSessionsChange = (enabled: boolean) => {
+    setShowFilteredSessions(enabled);
+    setShowFilteredSessionsState(enabled);
+  };
+
+  const registerPush = async () => {
+    if (pushRegistering) return;
+    setPushRegistering(true);
+    setPushStatus(null);
+    try {
+      if (typeof window === "undefined" || !("Notification" in window)) {
+        throw new Error("unsupported or not permitted");
+      }
+      const permission = Notification.permission === "default"
+        ? await Notification.requestPermission()
+        : Notification.permission;
+      if (permission !== "granted") throw new Error("unsupported or not permitted");
+      const ok = await setupPushSubscription(locale);
+      if (!ok) throw new Error("unsupported or not permitted");
+      setPushStatus({ kind: "ok", message: t("settings.pushRegistered") });
+    } catch (cause) {
+      setPushStatus({ kind: "error", message: `${t("settings.pushRegisterFailed")} ${cause instanceof Error ? cause.message : String(cause)}` });
+    } finally {
+      setPushRegistering(false);
+    }
+  };
+
+  return (
+    <div className="settings-general">
+      <h2 className="settings-general-title">{t("settings.general")}</h2>
+
+      <section className="settings-general-section">
+        <h3 className="settings-general-heading">{t("settings.appearance")}</h3>
+        <div role="radiogroup" aria-label={t("settings.appearance")} className="settings-theme-options">
+          {THEME_OPTIONS.map((option) => {
+            const selected = preference === option.id;
+            return (
+              <label
+                key={option.id}
+                className="settings-theme-option"
+              >
+                <input
+                  type="radio"
+                  name="theme"
+                  value={option.id}
+                  checked={selected}
+                  onChange={() => setThemePreference(option.id)}
+                  className="sr-only"
+                />
+                <ThemeIcon preference={option.id} />
+                <span className="settings-theme-option-label">{t(option.label)}</span>
+              </label>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="settings-general-section">
+        <h3 className="settings-general-heading">{t("settings.typography")}</h3>
+        <p id="settings-typography-description" className="settings-general-description">{t("settings.fontDescription")}</p>
+        <div className="settings-chat-options">
+          <FontSettings />
+          <div className="settings-chat-option settings-chat-range-option">
+            <div className="settings-chat-range-header">
+              <label htmlFor="settings-chat-content-font-size">{t("settings.chatContentFontSize")}</label>
+              <output htmlFor="settings-chat-content-font-size">{fontSize}px</output>
+              <ConfigButton
+                variant="ghost"
+                size="small"
+                className="settings-chat-reset"
+                title={t("settings.resetChatContentFontSize")}
+                aria-label={t("settings.resetChatContentFontSize")}
+                disabled={fontSize === CHAT_CONTENT_FONT_SIZE_DEFAULT}
+                onClick={() => setFontSize(CHAT_CONTENT_FONT_SIZE_DEFAULT)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />
+                </svg>
+              </ConfigButton>
+            </div>
+            <input
+              id="settings-chat-content-font-size"
+              type="range"
+              min={CHAT_CONTENT_FONT_SIZE_MIN}
+              max={CHAT_CONTENT_FONT_SIZE_MAX}
+              step={1}
+              value={fontSize}
+              onChange={(event) => setFontSize(Number(event.target.value))}
+            />
+          </div>
+          <div className="settings-chat-option settings-chat-range-option">
+            <div className="settings-chat-range-header">
+              <label htmlFor="settings-chat-content-width">{t("settings.chatContentWidth")}</label>
+              <output htmlFor="settings-chat-content-width">{chatContentWidth}px</output>
+              <ConfigButton
+                variant="ghost"
+                size="small"
+                className="settings-chat-reset"
+                title={t("settings.resetChatContentWidth")}
+                aria-label={t("settings.resetChatContentWidth")}
+                disabled={chatContentWidth === CHAT_CONTENT_WIDTH_DEFAULT}
+                onClick={() => setChatContentWidth(CHAT_CONTENT_WIDTH_DEFAULT)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />
+                </svg>
+              </ConfigButton>
+            </div>
+            <input
+              id="settings-chat-content-width"
+              type="range"
+              min={CHAT_CONTENT_WIDTH_MIN}
+              max={CHAT_CONTENT_WIDTH_MAX}
+              step={10}
+              value={chatContentWidth}
+              onChange={(event) => setChatContentWidth(Number(event.target.value))}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-general-section">
+        <h3 className="settings-general-heading">{t("settings.chat")}</h3>
+        <div className="settings-chat-options">
+          <div className="settings-chat-option settings-chat-switch-option">
+            <span>{t("settings.thinkingExpandedDefault")}</span>
+            <ConfigSwitch
+              checked={thinkingExpanded}
+              label={t("settings.thinkingExpandedDefault")}
+              onChange={(enabled) => {
+                setThinkingExpandedByDefault(enabled);
+                setThinkingExpanded(enabled);
+              }}
+            />
+          </div>
+          <div className="settings-chat-option settings-chat-switch-option">
+            <span>{t("settings.quoteSelection")}</span>
+            <ConfigSwitch
+              checked={quoteSelectionEnabled}
+              label={t("settings.quoteSelection")}
+              onChange={onQuoteSelectionChange}
+            />
+          </div>
+          <div className="settings-chat-option settings-chat-switch-option" role="radiogroup" aria-label={t("settings.enterSendMode")}>
+            <span>{t("settings.enterSendMode")}</span>
+            <div className="settings-send-mode-options">
+              <label className="settings-send-mode-option">
+                <input
+                  type="radio"
+                  name="enter-send-mode"
+                  value="enter"
+                  checked={enterSendMode === "enter"}
+                  onChange={() => setEnterSendMode("enter")}
+                  className="sr-only"
+                />
+                <span className="settings-send-mode-label">{t("settings.enterSendModeEnter")}</span>
+              </label>
+              <label className="settings-send-mode-option">
+                <input
+                  type="radio"
+                  name="enter-send-mode"
+                  value="ctrlEnter"
+                  checked={enterSendMode === "ctrlEnter"}
+                  onChange={() => setEnterSendMode("ctrlEnter")}
+                  className="sr-only"
+                />
+                <span className="settings-send-mode-label">{t("settings.enterSendModeCtrlEnter")}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-general-section">
+        <h3 className="settings-general-heading">{t("settings.sessionFilter")}</h3>
+        <p className="settings-general-description">{t("settings.sessionFilterDescription")}</p>
+        <textarea
+          className="settings-session-filter-rules"
+          aria-label={t("settings.sessionFilterPatternsLabel")}
+          title={t("settings.sessionFilterPatternsLabel")}
+          spellCheck={false}
+          rows={4}
+          value={sessionFilterRulesText}
+          onChange={(event) => handleSessionFilterRulesChange(event.target.value)}
+        />
+        <div className="settings-shell-option">
+          <span>{t("settings.showFilteredSessions")}</span>
+          <ConfigSwitch
+            checked={showFilteredSessions}
+            label={t("settings.showFilteredSessions")}
+            onChange={handleShowFilteredSessionsChange}
+          />
+        </div>
+        <div className="settings-shell-option">
+          <span>{t("settings.sessionAgeDays")}</span>
+          <input
+            type="number"
+            min={0}
+            max={365}
+            step={1}
+            value={ageFilterDays}
+            onChange={(event) => {
+              const days = Math.round(Number(event.target.value));
+              setAgeFilterDaysState(Number.isFinite(days) ? Math.max(0, Math.min(365, days)) : 0);
+              setSessionAgeFilterDays(days);
+            }}
+            aria-label={t("settings.sessionAgeDays")}
+            title={t("settings.sessionAgeDaysDescription")}
+            className="settings-age-filter-input"
+            data-testid="session-age-filter-input"
+          />
+        </div>
+        <p className="settings-general-description">{t("settings.sessionAgeDaysDescription")}</p>
+      </section>
+
+      <section className="settings-general-section">
+        <h3 className="settings-general-heading">{t("settings.sidebarLayout")}</h3>
+        <p className="settings-general-description">{t("settings.sidebarLayoutDescription")}</p>
+        {/* Files placement (wi B3): a two-option radio row in General (the
+            WI's stated location — no sidebar shortcut). The live store
+            setter persists AND broadcasts, so the sidebar swaps its layout
+            immediately; the hook value re-renders this row in sync. Stacked
+            is the default and today's behavior; this commit only stores and
+            reads the value (the sidebar layout change lands separately). */}
+        <div className="settings-chat-option settings-chat-switch-option" role="radiogroup" aria-label={t("settings.sidebarLayout")}>
+          <span>{t("settings.sidebarLayout")}</span>
+          <div className="settings-send-mode-options">
+            <label className="settings-send-mode-option">
+              <input
+                type="radio"
+                name="files-placement"
+                value="stacked"
+                checked={filesPlacement === "stacked"}
+                onChange={() => setFilesPlacement("stacked")}
+                className="sr-only"
+              />
+              <span className="settings-send-mode-label">{t("settings.filesPlacementStacked")}</span>
+            </label>
+            <label className="settings-send-mode-option">
+              <input
+                type="radio"
+                name="files-placement"
+                value="tabs"
+                checked={filesPlacement === "tabs"}
+                onChange={() => setFilesPlacement("tabs")}
+                className="sr-only"
+              />
+              <span className="settings-send-mode-label">{t("settings.filesPlacementTabs")}</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      {pushSurfaceOperator && (
+        <section className="settings-general-section">
+          <h3 className="settings-general-heading">{t("settings.pushPermission")}</h3>
+        <p className="settings-general-description">{t("settings.pushPermissionDescription")}</p>
+        <div className="settings-shell-option">
+          <span>{t("settings.pushPermission")}</span>
+          <button
+            type="button"
+            className="config-button config-button-small config-button-secondary"
+            disabled={pushRegistering}
+            onClick={() => void registerPush()}
+          >
+            {pushRegistering ? t("settings.pushRegisterLoading") : t("settings.pushRegister")}
+          </button>
+        </div>
+        {pushStatus && (
+          <p
+            role="status"
+            className="settings-general-error"
+            style={pushStatus.kind === "ok" ? { color: "var(--accent)" } : undefined}
+          >
+            {pushStatus.message}
+          </p>
+        )}
+        </section>
+      )}
+
+      {supportedLocales.length > 1 && (
+        <section className="settings-general-section">
+          <h3 className="settings-general-heading">{t("common.language")}</h3>
+          <div role="radiogroup" aria-label={t("common.language")} className="settings-language-options">
+            {supportedLocales.map((plugin) => {
+              const selected = locale === plugin.id;
+              return (
+                <button
+                  key={plugin.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setLocale(plugin.id as typeof locale)}
+                  className="settings-language-option"
+                >
+                  <span className="settings-language-radio">
+                    {selected && <span className="settings-language-radio-dot" />}
+                  </span>
+                  <span className="settings-language-label">{plugin.label}</span>
+                  <span className="settings-language-code">{plugin.id}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="settings-general-section">
+          <ConfigButton variant="secondary" disabled={loggingOut} onClick={() => void logOut()}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+            </svg>
+            {loggingOut ? t("auth.loggingOut") : t("auth.logOut")}
+          </ConfigButton>
+          {logoutError && <p role="alert" className="settings-general-error">{logoutError}</p>}
+        </section>
+    </div>
+  );
+}
+
+export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessionReloaded, quoteSelectionEnabled, onQuoteSelectionChange }: Props) {
+  const { t } = useI18n();
+  const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [mountedSections, setMountedSections] = useState<ReadonlySet<SettingsSection>>(
+    () => new Set([section]),
+  );
+  // 运营者身份（共享读面 useYfMe）：运营者才有的设置分区（llm/skills/agents/
+  // plugins/polyforge，R5）对普通用户不存在——tab、移动端下拉与恢复部都不可见。
+  const me = useYfMe();
+  const isOperator = me?.operator === true;
+
+  const allSections: { id: SettingsSection; label: string; requiresProject: boolean }[] = [
+    { id: "general", label: t("settings.general"), requiresProject: false },
+    { id: "llm", label: "LLM 服务", requiresProject: false },
+    { id: "skills", label: t("common.skills"), requiresProject: true },
+    { id: "agents", label: t("common.agents"), requiresProject: true },
+    { id: "plugins", label: t("common.plugins"), requiresProject: true },
+    { id: "polyforge", label: t("polyforge.title"), requiresProject: false },
+  ];
+  // 运营者才有的分区（isSettingsSectionVisible 一张表）对普通用户不存在。
+  const sections = allSections.filter((item) => isSettingsSectionVisible(item.id, isOperator));
+
+  useEffect(() => setLastSettingsSection(initialSection), [initialSection]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (cwd || (section !== "skills" && section !== "agents" && section !== "plugins")) return;
+    setSection("general");
+    setMountedSections((current) => new Set(current).add("general"));
+    setLastSettingsSection("general");
+  }, [cwd, section]);
+
+  // 恢复到的分区对当前身份不可见（普通用户恢复了运营者分区）→ 回 general。
+  // 身份未加载（me=null）时按普通用户处理，不闪运营者面。
+  useEffect(() => {
+    if (isSettingsSectionVisible(section, isOperator)) return;
+    setSection("general");
+    setMountedSections((current) => new Set(current).add("general"));
+    setLastSettingsSection("general");
+  }, [section, isOperator]);
+
+  const activateSection = (nextSection: SettingsSection) => {
+    setMountedSections((current) => new Set(current).add(nextSection));
+    setSection(nextSection);
+    setLastSettingsSection(nextSection);
+  };
+
+  // 分区内容宿主：只有「已 mount 且对当前身份可见」的分区才渲染——普通用户
+  // 恢复到了运营者分区时（身份未加载完），不闪运营者内容（tab 已不可见）。
+  const visibleSectionIds = new Set(sections.map((item) => item.id));
+  const sectionHost = (id: SettingsSection, content: ReactNode) => visibleSectionIds.has(id) && mountedSections.has(id) ? (
+    <div
+      key={id}
+      hidden={section !== id}
+      className="settings-section-host"
+    >
+      {content}
+    </div>
+  ) : null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("settings.title")}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      className="settings-dialog-backdrop"
+    >
+      <div className="settings-dialog-surface">
+        <div className="settings-dialog-header">
+          <strong className="settings-dialog-title">{t("settings.title")}</strong>
+          <select
+            aria-label={t("settings.title")}
+            value={section}
+            onChange={(event) => activateSection(event.target.value as SettingsSection)}
+            className="settings-mobile-section-picker"
+          >
+            {sections.map((item) => (
+              <option key={item.id} value={item.id} disabled={item.requiresProject && !cwd}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <nav aria-label={t("settings.title")} className="settings-section-tabs">
+            {sections.map((item) => {
+              const selected = section === item.id;
+              const disabled = item.requiresProject && !cwd;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="settings-section-tab"
+                  disabled={disabled}
+                  title={disabled ? t("settings.projectRequired") : item.label}
+                  aria-current={selected ? "page" : undefined}
+                  onClick={() => activateSection(item.id)}
+                >
+                  <SettingsSectionIcon section={item.id} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <button type="button" onClick={onClose} title={t("i18n.close")} aria-label={t("i18n.close")} className="config-close-button settings-dialog-close">×</button>
+        </div>
+
+        <main className="settings-dialog-main">
+          {sectionHost("general", <GeneralSettings sessionId={sessionId} onSessionReloaded={onSessionReloaded} quoteSelectionEnabled={quoteSelectionEnabled} onQuoteSelectionChange={onQuoteSelectionChange} />)}
+          {cwd && sectionHost("skills", <SkillsConfig embedded key={cwd} cwd={cwd} onClose={onClose} />)}
+          {cwd && sectionHost("agents", <AgentsConfig embedded key={cwd} cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onSessionReloaded} />)}
+          {cwd && sectionHost("plugins", <PluginsConfig embedded key={cwd} cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onSessionReloaded} />)}
+          {sectionHost("llm", <LlmConfigCard />)}
+          {sectionHost("polyforge", <PolyforgeConfig cwd={cwd} active={section === "polyforge"} />)}
+        </main>
+      </div>
+    </div>
+  );
+}

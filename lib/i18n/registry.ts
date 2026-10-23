@@ -1,7 +1,6 @@
 import { zhCNLocale } from "./messages/zh-CN";
 import type { Locale, LocalePlugin } from "./types";
 
-// yf-app 仅内置简体中文（zh-CN 单 locale；spec「部署/UI」Requirement）。
 const localePlugins: LocalePlugin[] = [zhCNLocale];
 
 /**
@@ -19,11 +18,10 @@ export function getSupportedLocales(): string[] {
 }
 
 /**
- * 将浏览器语言列表解析为 yf-app 的内置语言。
- * @param _languages 浏览器按优先级排列的语言列表（保留参数位以兼容调用方；zh-CN 是唯一内置语言）
- * @returns 恒为 zh-CN（不做多语言降级）
+ * 将浏览器语言列表解析为内置语言。产品只有简体中文（yingfang#28 R12），
+ * 任何浏览器语言都解析到 zh-CN；机制保留（日后增补语言包只需注册并在此判断）。
+ * @param _languages 浏览器按优先级排列的语言列表（当前不影响结果）
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 参数保留以兼容调用方签名。
 export function resolveBrowserLocale(_languages: readonly string[]): Locale {
   return "zh-CN";
 }

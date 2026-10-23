@@ -1,0 +1,4 @@
+{
+  "$comment": "运营者名单（plan D3/A3，spec R3/R5）：yingfang user_id 数组，只含 user_id、不含任何凭据，可进仓。运营者判定 = 本名单 ∪ 环境变量 YF_OPERATOR_USER_IDS（逗号列表，e2e/部署引导缝）。只在服务端 import（lib/yf/operators.ts），不进任何客户端字节。",
+  "operatorUserIds": []
+}

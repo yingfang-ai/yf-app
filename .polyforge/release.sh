@@ -8,8 +8,9 @@
 # verbatim, and any nonzero exit of this script is a release failure).
 #
 # What a release is in this repo — yf-app's own convention, no upstream
-# involved (yf-app is a permanent fork of silgrid/pi-web, baseline v0.0.20;
-# it never fetches, merges, follows, or publishes upstream):
+# involved (yf-app is a permanent fork of silgrid/pi-web, baseline upstream
+# main commit 2481a70, rebased once in yingfang#28; it never fetches, merges,
+# follows, or publishes upstream):
 #
 #   1. bump the version in package.json (and package-lock.json),
 #   2. run the green bar — `npm run lint`, `npm test`, `npm run build` — to
@@ -35,8 +36,9 @@
 #   e.g. .polyforge/release.sh patch    # 0.0.1 -> 0.0.2
 #
 #   Versioning epoch (2026-10-14): yf-app restarts at 0.0.1 — the inherited
-#   pi-web tags (v0.0.1…v0.0.20) and the void v0.0.21 (never published: the
-#   tag-push trigger was dead) were deleted; the initial v0.0.1 was cut
+#   pi-web release tags (v0.0.1…v0.0.20; historical tag names only, the fork
+#   baseline is upstream main commit 2481a70) and the void v0.0.21 (never
+#   published: the tag-push trigger was dead) were deleted; the initial v0.0.1 was cut
 #   manually (green bar + annotated tag + push + workflow_dispatch). From
 #   0.0.2 on, this script is the only release path.
 #
@@ -245,8 +247,8 @@ git tag -a "v$NEW" -m "yf-app v$NEW
 Release of yf-app's own npm package (name: yf-app). Pushing this tag
 triggers .github/workflows/release.yml, which publishes via npm Trusted
 Publishing (OIDC, provenance). yf-app is a permanent fork of
-silgrid/pi-web (baseline v0.0.20): it does not publish, follow, or merge
-from the upstream project."
+silgrid/pi-web (baseline upstream main commit 2481a70): it does not
+publish, follow, or merge from the upstream project."
 log "created annotated tag v$NEW"
 
 log "pushing tag v$NEW to origin ($ORIGIN_URL) — branch push deliberately omitted (main lands via PR)"

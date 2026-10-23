@@ -1,0 +1,85 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { createJiti } from "jiti";
+
+const agentDir = await mkdtemp(path.join(os.tmpdir(), "pi-web-tool-settings-route-"));
+const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+process.env.PI_CODING_AGENT_DIR = agentDir;
+test.after(async () => {
+  if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+  await rm(agentDir, { recursive: true, force: true });
+});
+
+const jiti = createJiti(import.meta.url, {
+  alias: { "@": process.cwd() },
+  interopDefault: true,
+  moduleCache: false,
+});
+const { GET, PUT } = await jiti.import("./route.ts");
+// 运营者守卫（plan step 5）：本路由族仅运营者可用——测试以运营者会话直调。
+process.env.YF_OPERATOR_USER_IDS = "abad1dea000000000000000000000000";
+const { mkdtempSync: mkOperatorRoot } = await import("node:fs");
+const { tmpdir: operatorTmpdir } = await import("node:os");
+const operatorDataRoot = mkOperatorRoot((await import("node:path")).join(operatorTmpdir(), "yf-operator-guard-"));
+process.env.YF_DATA_DIR = operatorDataRoot;
+const { writeSessionIndex } = await jiti.import("../../../../lib/yf/session-index.ts");
+writeSessionIndex(operatorDataRoot, "guard-tests", {
+  user_id: "abad1dea000000000000000000000000",
+  expires_at: "2030-01-01T00:00:00Z",
+});
+// tmp-guard（npm test）：运营者数据根本文件自建，随本文件结束移除。
+test.after(() => rm(operatorDataRoot, { recursive: true, force: true }));
+const operatorRequest = (url, init = {}) =>
+  new Request(url, { ...init, headers: { Cookie: "yf_session=guard-tests", ...(init.headers ?? {}) } });
+
+const settingsPath = path.join(agentDir, "settings.json");
+const isWindows = process.platform === "win32";
+
+function put(body, headers = { host: "localhost", "Content-Type": "application/json" }) {
+  return PUT(operatorRequest("http://localhost/api/tools/settings", {
+    method: "PUT",
+    headers,
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  }));
+}
+
+test("reports and switches Code mode on every platform", async () => {
+  await writeFile(settingsPath, JSON.stringify({ defaultModel: "m" }));
+  const initial = await GET(operatorRequest("http://localhost/api/tools/settings"));
+  assert.equal(initial.status, 200);
+  assert.deepEqual(await initial.json(), { codemode: "automatic" });
+
+  const enabled = await put({ codemode: "always" });
+  assert.equal(enabled.status, 200);
+  assert.deepEqual(await enabled.json(), { codemode: "always" });
+  assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), { defaultModel: "m", defaultTools: ["+codemode"] });
+
+  const automatic = await put({ codemode: "automatic" });
+  assert.deepEqual(await automatic.json(), { codemode: "automatic" });
+  assert.deepEqual(JSON.parse(await readFile(settingsPath, "utf8")), { defaultModel: "m" });
+});
+
+test("rejects requests that do not name exactly one valid change", async () => {
+  for (const [body, status] of [
+    [{ codemode: "never" }, 400],
+    [{ enabled: true }, 400],
+    [{}, 400],
+    [[], 400],
+    ["{ not json", 400],
+  ]) {
+    const response = await put(body);
+    assert.equal(response.status, status, JSON.stringify(body));
+  }
+  assert.equal((await put({ codemode: "always" }, { host: "localhost", "Content-Type": "text/plain" })).status, 415);
+});
+
+test("reports a settings file it cannot parse instead of overwriting it", async () => {
+  await writeFile(settingsPath, "{ not json");
+  assert.equal((await GET(operatorRequest("http://localhost/api/tools/settings"))).status, 500);
+  assert.equal((await put({ codemode: "always" })).status, 500);
+  assert.equal(await readFile(settingsPath, "utf8"), "{ not json");
+});

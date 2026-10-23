@@ -1,16 +1,66 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { isApiRequestAllowed, isApiRequestHostAllowed } from "@/lib/request-security";
+import { yfSessionTokenFromCookie } from "@/lib/yf/session-index";
 
-// 最小同源直通。
-//
-// yf-app 的部署形态是同源反向代理（docs/deploy.md）：浏览器只见一个源，契约端点
-// （register/login/logout/convs/rounds/tree/select/presign）由反向代理转发给
-// yingfang，`yf_session` cookie 自然携带；`/api/guide` 是 yf-app 自有的服务端面，
-// 由反向代理排除在转发规则外、落回本服务。
-//
-// 这里不再有上游 pi-web 的 web-password 门与面向 coding-agent 的请求安全逻辑：
-// 每个请求原样直通，由各路由自己处理。
-export function proxy() {
-  return NextResponse.next();
+/**
+ * yf 门（plan step 4，spec R7）：`yf_session` cookie 在场放行、不在场跳登录页。
+ * 上游 request-security 逻辑保留（host/origin 校验）。
+ *
+ * - `/api/yf/register`、`/api/yf/login` 是 pre-auth 端点：对匿名可达（鉴权由
+ *   契约与 yf-app 路由自己管——yf 门只管页面）。
+ * - 其余 `/api/*` 匿名 → 401；页面匿名 → 跳 `/login`（带 next 回跳参数）。
+ * - pi-web 的口令登录（PI_WEB_PASSWORD）不再是登录方式：web-auth 族已删。
+ */
+
+// pre-auth 端点（契约 §2.1–2.2）：注册与登录本身不需要会话。
+const PRE_AUTH_API = /^\/api\/yf\/(register|login)$/;
+
+// 已删除的面（yingfang#28 R3/R4）：路由已不存在，匿名与登录请求一律同样回 404
+// （不让登录门把「已删除」伪装成「需要登录」）。放行到路由层由 Next 回 404。
+const DELETED_API = /^\/api\/(terminal|worktrees|models|models-config|auth|web-auth)(\/|$)|^\/api\/agent\/[^/]+\/bash-output(\/|$)/;
+
+export function proxy(request: NextRequest) {
+  const isApiRequest = request.nextUrl.pathname === "/api"
+    || request.nextUrl.pathname.startsWith("/api/");
+  const isTrustedRequest = isApiRequest
+    ? isApiRequestAllowed(request)
+    : isApiRequestHostAllowed(request);
+
+  if (!isTrustedRequest) {
+    if (!isApiRequest) {
+      return new NextResponse("Untrusted request", { status: 403 });
+    }
+    return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
+  }
+
+  if (isApiRequest && DELETED_API.test(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
+  const token = yfSessionTokenFromCookie(request.headers.get("cookie"));
+  if (token) {
+    // 会话在场：放行。会话有效性（index 命中/过期）由各路由自负（me/契约 401）。
+    return NextResponse.next();
+  }
+
+  if (isApiRequest) {
+    if (PRE_AUTH_API.test(request.nextUrl.pathname)) {
+      return NextResponse.next();
+    }
+    return new NextResponse("Authentication required", {
+      status: 401,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
+  if (request.nextUrl.pathname === "/login") {
+    return NextResponse.next();
+  }
+  const loginUrl = new URL("/login", request.url);
+  if (request.nextUrl.pathname !== "/" || request.nextUrl.search) {
+    loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+  }
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = { matcher: ["/", "/login", "/api/:path*"] };

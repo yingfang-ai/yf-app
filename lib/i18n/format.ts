@@ -16,7 +16,7 @@ export function interpolateMessage(message: string, params: TranslationParams = 
 }
 
 /**
- * 从当前语言包解析消息（yf-app 仅 zh-CN 单 locale；缺失时返回 key）。
+ * 从当前语言和 zh-CN 语言包中解析消息。
  * @param locale 当前语言
  * @param key 翻译 key
  * @param messages 各语言的消息字典
@@ -29,7 +29,7 @@ export function translateMessage(
   messages: MessagesByLocale,
   params: TranslationParams = {},
 ): string {
-  const message = messages[locale]?.[key];
+  const message = messages[locale]?.[key] ?? messages["zh-CN"]?.[key];
   if (message === undefined) {
     if (process.env.NODE_ENV !== "production") console.warn(`[i18n] Missing translation: ${key}`);
     return key;

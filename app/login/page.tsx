@@ -2,13 +2,41 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { login, register, YfApiError, YfUnauthorizedError } from "@/lib/yf/api";
-import { clearSavedUser, getSavedUserId, saveUserId } from "@/lib/yf/auth-store";
+import { clearAllConvKeys } from "@/lib/yf/conv-storage";
 
 type Mode = "login" | "register";
 
+// 账号面的客户端存储：localStorage 只记住 user_id（登录预填），recovery 零持久化。
+const USER_ID_KEY = "yf.user_id";
+
+function savedUserId(): string | null {
+  try {
+    return window.localStorage.getItem(USER_ID_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberUserId(userId: string): void {
+  try {
+    window.localStorage.setItem(USER_ID_KEY, userId);
+  } catch {
+    // 存储被禁用（隐私模式等）：预填不可用是可接受的降级，登录态在 cookie 上。
+  }
+}
+
+function clearSavedUserId(): void {
+  try {
+    window.localStorage.removeItem(USER_ID_KEY);
+  } catch {
+    // 同上：忽略存储异常。
+  }
+}
+
 /**
- * 账号面：登录（user_id 预填、recovery 不持久化）与注册（邀请码 + recovery，
- * 注册成功后强制确认已保存 recovery 才能进入产品）。
+ * 账号面（spec R7）：登录（user_id 预填、recovery 不持久化）与注册（邀请码 +
+ * recovery，注册成功后展示生成的 user_id、强制确认已保存 recovery 才能进入产品）。
+ * pi-web 的上游口令登录不作为本产品登录方式（该族已在 plan step 4 删除）。
  */
 function AuthForm() {
   const [mode, setMode] = useState<Mode>("login");
@@ -24,13 +52,18 @@ function AuthForm() {
 
   useEffect(() => {
     // user_id 由 localStorage 记住；recovery 永不预填（也不存在于任何存储）。
-    const saved = getSavedUserId();
+    const saved = savedUserId();
     if (saved) setUserId(saved);
   }, []);
 
-  const enterProduct = (savedUserId: string) => {
-    saveUserId(savedUserId);
-    window.location.replace("/");
+  const enterProduct = (loggedInUserId: string) => {
+    rememberUserId(loggedInUserId);
+    const destination = new URLSearchParams(window.location.search).get("next");
+    let target = "/";
+    if (destination && destination.startsWith("/") && !destination.startsWith("//")) {
+      target = destination;
+    }
+    window.location.replace(target);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -69,7 +102,7 @@ function AuthForm() {
   };
 
   if (registeredUserId !== null) {
-    // 注册成功 → 展示 user_id + 强制确认已保存 recovery（「丢失无法找回」警示）。
+    // 注册成功 → 展示生成的 user_id + 强制确认已保存 recovery（「丢失无法找回」警示）。
     return (
       <main className="min-h-dvh flex items-center justify-center bg-bg px-4">
         <div className="w-full max-w-md border border-border rounded-lg p-6 bg-bg-panel">
@@ -81,10 +114,10 @@ function AuthForm() {
             {registeredUserId}
           </p>
           <div className="mt-4 rounded border border-border bg-bg-subtle p-3 text-sm text-text">
-            <p className="font-semibold">请立即保存你的 recovery（恢复码）</p>
+            <p className="font-semibold">请立即保存你的 recovery（恢复口令）</p>
             <ul className="mt-2 list-disc pl-5 space-y-1 text-text-muted">
-              <li>recovery 是<strong className="text-text">唯一</strong>登录凭据，只在本次展示，本页面不会再次显示。</li>
-              <li>服务端<strong className="text-text">没有</strong>找回端点：recovery 一旦丢失，账号将<strong className="text-text">永久无法访问</strong>，无法找回。</li>
+              <li>recovery 是<strong className="text-text">唯一</strong>登录凭据，服务端<strong className="text-text">没有</strong>找回端点。</li>
+              <li>recovery 一旦丢失，账号将<strong className="text-text">永久无法访问</strong>，无法找回。</li>
             </ul>
           </div>
           <label className="mt-4 flex items-start gap-2 text-sm text-text cursor-pointer">
@@ -112,7 +145,7 @@ function AuthForm() {
   return (
     <main className="min-h-dvh flex items-center justify-center bg-bg px-4">
       <div className="w-full max-w-md border border-border rounded-lg p-6 bg-bg-panel">
-        <h1 className="text-lg font-semibold text-text">yf-app</h1>
+        <h1 className="text-lg font-semibold text-text">映坊</h1>
         <p className="mt-1 text-sm text-text-muted">图像创作工作台</p>
 
         <div className="mt-4 flex gap-2 text-sm" role="tablist">
@@ -195,13 +228,15 @@ function AuthForm() {
 }
 
 export default function LoginPage() {
-  // 进入登录页即视为要离开当前会话：清掉记住的 user_id 以外的残留（无）。
-  // recovery 从不持久化，因此这里没有可清理的凭据；user_id 的预填保留。
+  // 登出后跳回本页（?logout=1）：清掉记住的 user_id 与所有按用户分键的
+  // conv 续接（`yf.conv.*`）——换号登录不复用上一个用户的会话（not_found
+  // 重试循环）。recovery 从不持久化，没有可清理的凭据。
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("logout") === "1") {
-      clearSavedUser();
+      clearSavedUserId();
+      clearAllConvKeys();
     }
   }, []);
   return <AuthForm />;
