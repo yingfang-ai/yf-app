@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveSessionPath } from "@/lib/session-reader";
 import { getRpcSession, isSessionReloadedFromDiskError, setRpcSessionTools, startRpcSession } from "@/lib/rpc-manager";
+import { requireOperator } from "@/lib/yf/route-policy";
 import { requireSessionAccess } from "@/lib/yf/session-access";
 
 // POST /api/agent/[id] - Send a command to an existing session
@@ -17,6 +18,13 @@ export async function POST(
   try {
     const body = await req.json() as { type: string; [key: string]: unknown };
     commandType = typeof body.type === "string" ? body.type : undefined;
+    // Model switching is operator-only: ordinary users stay on the site default
+    // model. requireSessionAccess above only checks ownership, so gate the
+    // command itself here, before both the fast path and the cold start.
+    if (body.type === "set_model") {
+      const notOperator = await requireOperator(req);
+      if (notOperator) return notOperator;
+    }
     const requestedToolNames = body.toolNames;
     if (
       requestedToolNames !== undefined

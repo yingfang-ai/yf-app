@@ -73,4 +73,6 @@ sessions never fetch `/api/models`.
 
 - Operators get the native `ModelSelector` in the composer (plus the reasoning-level
   control's save-as-default star); ordinary users get neither — their model is the site
-  default, fixed server-side.
+  default, fixed server-side: `/api/agent/new` drops their `provider`/`modelId`, and
+  `POST /api/agent/[id]` answers a non-operator's `set_model` with the
+  `requireOperator` 403 (`forbidden`) before the command reaches the session.
