@@ -9,6 +9,9 @@ import { useEffect, useState } from "react";
  *
  * 模块级单飞 promise：同屏多个组件共享一次请求；会话切换（登出/换号）伴随
  * 整页跳转（window.location.replace），模块必然重载，不会读到旧身份。
+ * 只缓存成功读到的身份：一次失败（非 2xx / 网络错误 / 坏 JSON）resolve 为 null
+ * 后即清掉 promise，下一次读取重新请求——否则一次瞬时失败会让整页把运营者
+ * 当普通用户直到整页刷新。
  */
 export interface YfMe {
   user_id: string;
@@ -30,7 +33,11 @@ export function fetchYfMe(): Promise<YfMe | null> {
           return null;
         }
       })
-      .catch(() => null);
+      .catch(() => null)
+      .then((me) => {
+        if (!me) mePromise = null;
+        return me;
+      });
   }
   return mePromise;
 }

@@ -42,3 +42,23 @@ test("the hook degrades to null (ordinary-user treatment) on a non-OK answer or 
   assert.match(source, /if \(!cancelled && data\) setMe\(data\);/);
   assert.match(source, /export function useYfMe\(\): YfMe \| null \{/);
 });
+test("a failed read is not cached: the next read fetches /api/yf/me again (yingfang#30 N4)", async () => {
+  // A fresh module instance, so the identity cached by the test above does not leak in.
+  const fresh = createJiti(import.meta.url, { alias: { "@": process.cwd() }, interopDefault: true, moduleCache: false });
+  const { fetchYfMe: fetchFresh } = await fresh.import("./useYfMe.ts");
+  const answers = [
+    () => new Response("upstream down", { status: 502 }),
+    () => { throw new TypeError("network down"); },
+    () => new Response(JSON.stringify({ user_id: "op-user", operator: true }), { headers: { "content-type": "application/json" } }),
+  ];
+  let calls = 0;
+  globalThis.fetch = async () => answers[calls++]();
+
+  assert.equal(await fetchFresh(), null, "a non-OK answer degrades to null");
+  assert.equal(await fetchFresh(), null, "a network failure degrades to null");
+  const me = await fetchFresh();
+  assert.equal(me?.operator, true, "the identity is read once the endpoint answers");
+  assert.equal(calls, 3, "each failure was retried by the next read");
+  assert.equal(await fetchFresh(), me, "a successful read is still shared");
+  assert.equal(calls, 3);
+});
