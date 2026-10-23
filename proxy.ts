@@ -17,7 +17,11 @@ const PRE_AUTH_API = /^\/api\/yf\/(register|login)$/;
 
 // 已删除的面（yingfang#28 R3/R4）：路由已不存在，匿名与登录请求一律同样回 404
 // （不让登录门把「已删除」伪装成「需要登录」）。放行到路由层由 Next 回 404。
-const DELETED_API = /^\/api\/(terminal|worktrees|models|models-config|auth|web-auth)(\/|$)|^\/api\/agent\/[^/]+\/bash-output(\/|$)/;
+// yingfang#31（spec R1）：models / models-config / auth 三族随「模型」tab 恢复，
+// 从删除面移除（owner 推翻 #28 对应裁决）；terminal / worktrees / web-auth 与
+// agent bash-output 维持删除。恢复的三族由 yf 门（匿名 401）+ requireOperator
+// （普通用户 403）管可见性。
+const DELETED_API = /^\/api\/(terminal|worktrees|web-auth)(\/|$)|^\/api\/agent\/[^/]+\/bash-output(\/|$)/;
 
 export function proxy(request: NextRequest) {
   const isApiRequest = request.nextUrl.pathname === "/api"
