@@ -374,3 +374,33 @@ test("the masked panel flow tests with the stored key at the configured URL (yin
   assert.equal(payload.ok, true, JSON.stringify(payload));
   assert.equal(new Headers(calls[0].init.headers).get("authorization"), "Bearer configured-key");
 });
+
+test("a stream that ends without finish_reason still counts as reachable (yingfang#31)", async (t) => {
+  // The e2e bar's OpenAI-shaped stub ends its SSE with [DONE] and no
+  // finish_reason chunk — the shape llama.cpp/vLLM-class servers also produce.
+  // The connectivity test only claims "endpoint reachable, content returned",
+  // so the temp model entry runs with supportsFinishReason: false (the SDK's
+  // own compat switch); a real failure (unreachable, 401, garbage) still fails.
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ input: String(input), init });
+    const events = [
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"OK"},"finish_reason":null}]}',
+      "data: [DONE]",
+    ].join("\n\n") + "\n\n";
+    return new Response(events, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  };
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const response = await POST(testModel({
+    providerName: "acme",
+    provider: { baseUrl: "https://acme.example/v1", api: "openai-completions", apiKey: "own-key" },
+    model: { id: "m" },
+  }));
+  const payload = await response.json();
+  assert.equal(payload.ok, true, JSON.stringify(payload));
+  assert.equal(payload.responseText, "OK");
+});

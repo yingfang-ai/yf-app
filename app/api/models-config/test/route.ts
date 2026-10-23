@@ -117,7 +117,11 @@ export async function POST(req: Request) {
     const runOutcome = (api?: string) => withTempModelsRuntime(
       providerName,
       providerEntry(api),
-      [model.entry],
+      // yingfang#31：连通性测试只关心「端点可达且吐出内容」——临时条目放宽
+      // supportsFinishReason（SDK 为 llama.cpp/vLLM 等不回 finish_reason 的
+      // OpenAI 兼容服务提供的官方兼容位），不把「流末尾缺 finish_reason」当
+      // 连通失败。只影响本路由的临时 runtime，不进入真实会话。
+      [{ ...model.entry, compat: { ...(model.entry.compat as Record<string, unknown> | undefined), supportsFinishReason: false } }],
       async (modelRuntime) => {
         const resolvedModel = modelRuntime.getModel(providerName, model.id);
         if (!resolvedModel) return { ok: false as const, error: `Model not found: ${providerName}/${model.id}` };

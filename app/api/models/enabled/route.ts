@@ -24,7 +24,7 @@ import {
 import type { EnabledModelsInput } from "@/lib/enabled-models";
 import { createModelRuntimeWithExtensions } from "@/lib/model-runtime";
 import { withDeferredProviderModels } from "@/lib/deferred-provider-models";
-import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { isOperatorModelsCwdAllowed } from "@/lib/file-access";
 import { invalidateModelsCache } from "@/lib/models-cache";
 import { requireOperator } from "@/lib/yf/route-policy";
 
@@ -84,8 +84,8 @@ async function resolveCwd(raw: string | null): Promise<{ cwd: string } | { error
   if (!cwdStat.isDirectory()) {
     return { error: Response.json({ error: `Not a directory: ${cwd}` }, { status: 400 }) };
   }
-  const allowedRoots = await getAllowedFileRoots();
-  if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
+  // yingfang#31（spec R2）：运营者可对任何可登记目录使用模型面（见 helper 注释）。
+  if (!(await isOperatorModelsCwdAllowed(cwd))) {
     return { error: Response.json({ error: "Access denied" }, { status: 403 }) };
   }
   return { cwd };

@@ -1,5 +1,6 @@
-import { getAdditionalAllowedRoots, normalizeSlashes } from "./allowed-roots";
+import { allowFileRoot, getAdditionalAllowedRoots, normalizeSlashes } from "./allowed-roots";
 import { isExistingPathWithinRoots, isPathWithinRoots } from "./path-security";
+import { isRegistrableRoot } from "./root-registration-policy";
 import { listAllSessions } from "./session-reader";
 export { allowFileRoot, normalizeSlashes } from "./allowed-roots";
 export { isWindowsAbsolutePath } from "./paths";
@@ -42,4 +43,19 @@ export function isFilePathAllowed(target: string, allowedRoots: Set<string>): bo
 /** Authorize an existing path after resolving symbolic links. */
 export function isExistingFilePathAllowed(target: string, allowedRoots: Set<string>): boolean {
   return isExistingPathWithinRoots(target, allowedRoots);
+}
+
+/**
+ * yingfang#31（spec R2）：模型配置面（/api/models*）的 cwd 守卫——运营者可以
+ * 对任何「可登记」目录使用模型面（与 /api/agent/new 同一事实：家目录或
+ * PI_WEB_ALLOWED_ROOT_PREFIXES 内，见 lib/root-registration-policy.ts）；命中
+ * 即顺手登记（allowFileRoot），后续 files/models 请求同样可用。普通用户不经
+ * 此路径（requireOperator 已先行拒绝），他们的 cwd 本就是服务端控制的用户目录。
+ */
+export async function isOperatorModelsCwdAllowed(cwd: string): Promise<boolean> {
+  if (isExistingFilePathAllowed(cwd, await getAllowedFileRoots())) return true;
+  const registrable = isRegistrableRoot(cwd);
+  if (!registrable.ok) return false;
+  allowFileRoot(registrable.path);
+  return true;
 }

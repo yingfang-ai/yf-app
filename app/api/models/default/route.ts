@@ -8,7 +8,7 @@ import {
   writeDefaultPreferences,
   type DefaultPreferencesEdit,
 } from "@/lib/default-preferences";
-import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { isOperatorModelsCwdAllowed } from "@/lib/file-access";
 import { resolveVisibleModels } from "@/lib/model-scope";
 import { withDeferredProviderModels } from "@/lib/deferred-provider-models";
 import { invalidateModelsCache } from "@/lib/models-cache";
@@ -78,8 +78,8 @@ export async function PUT(req: Request) {
   if (!cwdStat.isDirectory()) {
     return Response.json({ error: `Not a directory: ${cwd}` }, { status: 400 });
   }
-  const allowedRoots = await getAllowedFileRoots();
-  if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
+  // yingfang#31（spec R2）：运营者可对任何可登记目录使用模型面（见 helper 注释）。
+  if (!(await isOperatorModelsCwdAllowed(cwd))) {
     return Response.json({ error: "Access denied" }, { status: 403 });
   }
 

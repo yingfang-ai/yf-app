@@ -135,3 +135,31 @@ test("the models list is operator-only: forged cookie 401, ordinary session 403"
   assert.equal(ordinary.status, 403);
   assert.deepEqual(await ordinary.json(), { error: { code: "forbidden", message: "权限不足（该面仅运营者可用）" } });
 });
+
+test("an operator may list models for any registrable cwd, registered on first use (yingfang#31 spec R2)", async (t) => {
+  // No session ever named this directory, so it is not in the allowed-roots
+  // set — but it lies inside a registration prefix, which is the same fact
+  // /api/agent/new uses for the operator's workspace. The models face must
+  // accept it (and register it, so later requests see it too).
+  const { __setRegistrationScopesForTesting: setScopes } = await jiti.import("../../../lib/root-registration-policy.ts");
+  const home = await mkdtemp(join(tmpdir(), "yf-models-reg-home-"));
+  const project = join(home, "project");
+  await mkdir(project);
+  setScopes(home, null);
+  t.after(async () => {
+    setScopes(null, null);
+    await rm(home, { recursive: true, force: true });
+  });
+
+  const listed = await models(project);
+  assert.equal(listed.status, 200);
+  assert.deepEqual(listed.body.modelList.map((m) => `${m.provider}:${m.id}`), ["acme:one"]);
+
+  // An operator cwd OUTSIDE every registration prefix stays refused.
+  const outside = await mkdtemp(join(tmpdir(), "yf-models-outside-"));
+  t.after(async () => rm(outside, { recursive: true, force: true }));
+  assert.equal((await models(join(outside, "nope"))).status, 400); // does not exist
+  const outsideDir = await mkdtemp(join(tmpdir(), "yf-models-outside-dir-"));
+  t.after(async () => rm(outsideDir, { recursive: true, force: true }));
+  assert.equal((await models(outsideDir)).status, 403);
+});
