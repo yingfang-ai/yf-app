@@ -46,8 +46,8 @@ test("the manage rows run through the guarded seams, not raw store calls (wi pi#
   // now renders the same registered entries with per-row rename/delete.
   assert.equal((source.match(/onRenameEntryPath=/g) ?? []).length, 2);
   assert.equal((source.match(/onRemoveEntry=/g) ?? []).length, 2);
-  const customPathPickerStart = source.indexOf("{customPathOpen && (");
-  const addDirectoryPickerStart = source.indexOf("{addDirectoryOpen && (");
+  const customPathPickerStart = source.indexOf("{isOperator && customPathOpen && (");
+  const addDirectoryPickerStart = source.indexOf("{isOperator && addDirectoryOpen && (");
   const managePickerEnd = source.indexOf("onCancel={() => setAddDirectoryOpen(false)}");
   assert.ok(customPathPickerStart !== -1 && addDirectoryPickerStart !== -1);
   // The session-cwd picker renders the registered entries with the guarded
@@ -72,7 +72,7 @@ test("a successful rename keeps the renamed group expanded under its new identit
   // onRenameEntryPath=, so an unscoped first-occurrence indexOf would shift
   // this assertion onto the customPath instance and leave the manage
   // instance's expansion behavior uncovered (review warn, pi#57).
-  const manageStart = source.indexOf("{addDirectoryOpen && (");
+  const manageStart = source.indexOf("{isOperator && addDirectoryOpen && (");
   const manageEnd = source.indexOf("onCancel={() => setAddDirectoryOpen(false)}");
   assert.ok(manageStart !== -1 && manageEnd > manageStart, "the manage picker block is locatable");
   const manageSlice = source.slice(manageStart, manageEnd);
@@ -217,8 +217,8 @@ test("SessionSidebar owns the pin flow and wires it ONLY into the add-directory 
   // The plain customPath picker stays select-and-close: onPinDirectory is
   // passed exactly once, inside the addDirectoryOpen picker block.
   assert.equal((source.match(/onPinDirectory=/g) ?? []).length, 1);
-  const customPathPickerStart = source.indexOf("{customPathOpen && (");
-  const addDirectoryPickerStart = source.indexOf("{addDirectoryOpen && (");
+  const customPathPickerStart = source.indexOf("{isOperator && customPathOpen && (");
+  const addDirectoryPickerStart = source.indexOf("{isOperator && addDirectoryOpen && (");
   const pinPropAt = source.indexOf("onPinDirectory={pinDirectory}");
   assert.ok(customPathPickerStart !== -1 && addDirectoryPickerStart !== -1);
   assert.ok(pinPropAt > addDirectoryPickerStart, "the pin callback belongs to the manage picker");

@@ -21,8 +21,12 @@ test("the explorer section set is built from pins plus the selector's own select
   assert.match(source, /import \{ buildExplorerRoots \} from "@\/lib\/explorer-roots";/);
   assert.match(
     source,
-    /const explorerRoots = useMemo\(\s*\(\) => \{[\s\S]*?return buildExplorerRoots\(pinnedProjects, owning \?\? explorerSelection\);[\s\S]*?\},\s*\[pinnedProjects, explorerSelection, listedEntryForPath\],\s*\);/,
+    /const explorerRoots = useMemo\(\s*\(\) => \{[\s\S]*?return buildExplorerRoots\(gallery \? \[\.\.\.pinnedProjects, gallery\] : pinnedProjects, owning \?\? explorerSelection\);[\s\S]*?\},\s*\[pinnedProjects, explorerSelection, listedEntryForPath, me\],\s*\);/,
   );
+  // R10 读面：普通用户的画廊分区来自共享身份（ownGallerySection），不在
+  // pinned 列表里另存一份。
+  assert.match(source, /import \{ ownGallerySection \} from "@\/lib\/yf\/gallery-section";/);
+  assert.match(source, /const gallery = ownGallerySection\(me\);/);
   // The trailing-section selection is dedicated sidebar state.
   assert.match(source, /const \[explorerSelection, setExplorerSelection\] = useState<ProjectSelection \| null>\(null\);/);
 });
