@@ -49,6 +49,8 @@ writeSessionIndex(operatorDataRoot, "guard-tests", {
   user_id: "abad1dea000000000000000000000000",
   expires_at: "2030-01-01T00:00:00Z",
 });
+// tmp-guard（npm test）：运营者数据根本文件自建，随本文件结束移除。
+test.after(() => fs.rmSync(operatorDataRoot, { recursive: true, force: true }));
 
 function request(method, filePath, type, body, contentType = "application/json") {
   const encoded = encodeFilePathForApi(filePath);
