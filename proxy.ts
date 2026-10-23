@@ -17,7 +17,18 @@ const PRE_AUTH_API = /^\/api\/yf\/(register|login)$/;
 
 // 已删除的面（yingfang#28 R3/R4）：路由已不存在，匿名与登录请求一律同样回 404
 // （不让登录门把「已删除」伪装成「需要登录」）。放行到路由层由 Next 回 404。
-const DELETED_API = /^\/api\/(terminal|worktrees|models|models-config|auth|web-auth)(\/|$)|^\/api\/agent\/[^/]+\/bash-output(\/|$)/;
+// yingfang#31（spec R1）：models / models-config / auth 三族随「模型」tab 恢复，
+// 从删除面移除（owner 推翻 #28 对应裁决）；terminal / worktrees / web-auth 与
+// agent bash-output 维持删除。注意 `/api/yf/llm-config` 不在此列：它会被
+// `app/api/yf/[...path]` catch-all 逐字转发到 yingfang 上游，须由门直接回 404（见
+// REMOVED_LLM_CHANNEL_API）。
+const DELETED_API = /^\/api\/(terminal|worktrees|web-auth)(\/|$)|^\/api\/agent\/[^/]+\/bash-output(\/|$)/;
+
+// 已移除的单一「LLM 服务」通道（yingfang#31 spec R1）：`/api/yf/llm-config` 落在
+// `/api/yf/*` catch-all 的转发面里，不能像 DELETED_API 族那样放行给 Next 404——
+// 放行会把它逐字转发到 yingfang 的 /api/llm-config（上游不可达变 5xx，还绕过
+// 登录门形成匿名入口）。门层直接回 404、不转发，匿名与登录请求一致。
+const REMOVED_LLM_CHANNEL_API = /^\/api\/yf\/llm-config(\/|$)/;
 
 export function proxy(request: NextRequest) {
   const isApiRequest = request.nextUrl.pathname === "/api"
@@ -31,6 +42,10 @@ export function proxy(request: NextRequest) {
       return new NextResponse("Untrusted request", { status: 403 });
     }
     return NextResponse.json({ error: "Untrusted API request" }, { status: 403 });
+  }
+
+  if (isApiRequest && REMOVED_LLM_CHANNEL_API.test(request.nextUrl.pathname)) {
+    return new NextResponse(null, { status: 404 });
   }
 
   if (isApiRequest && DELETED_API.test(request.nextUrl.pathname)) {

@@ -16,11 +16,13 @@
 // - S-E2E-24: 永久分叉声明的基线号从 v0.0.20 更新为上游 main commit 2481a70
 //   （R1：重定基钉 2481a70，写法含 main commit 号）。
 // - S-E2E-01a/01b: 删除清单从「全部 coding-agent 面」改为本票实际删除面
-//   （R3 的 terminal/git worktree/models 配置面板 + R4 的主机 shell/bash 面
-//   + 单一运营者 LLM 通道下无消费者的 provider OAuth/web-auth 登录族）——
-//   重定基后 skills/plugins/cwd/files/sessions 等 coding-agent 面合法回归
-//   （R5：仅运营者可用，不删），旧清单会在新树上误红。路由族从基线树
-//   2481a70 实查推出（spec A5），不凭空列举。
+//   （R3 的 terminal/git worktree 面板 + R4 的主机 shell/bash 面
+//   + web-auth 登录族）——重定基后 skills/plugins/cwd/files/sessions 等
+//   coding-agent 面合法回归（R5：仅运营者可用，不删），旧清单会在新树上
+//   误红。路由族从基线树 2481a70 实查推出（spec A5），不凭空列举。
+//   yingfang#31（owner 推翻 #28 对应裁决）：models / models-config / auth
+//   三族随「模型」tab 恢复（仅运营者），移出删除面；terminal / worktree /
+//   主机 shell 维持删除。
 // 其余断言（S-E2E-02/22/25）一条未动。四个新形态面的行为 e2e 在
 // e2e/yf-behavior.mjs（本票新增，跑在测试内契约桩上）。
 //
@@ -85,18 +87,19 @@ async function main() {
   // #27's list ("all coding-agent faces") would fail after the rebase — the
   // upstream 2481a70 tree legitimately brings skills/plugins/cwd/files/git/
   // sessions/agent back (R5: operator-only, NOT deleted) — so the frozen list
-  // is now exactly the spec's deletion set: terminal + git worktree + models
-  // 配置 panels (R3) plus the host-shell/bash face (R4, owner 拍板移除,
-  // operators included) and the provider-OAuth/web-auth login families that
-  // the single operator LLM channel (R3) leaves without consumers. Families
-  // re-derived from the baseline tree 2481a70 (spec A5 实查), not invented.
+  // is now exactly the spec's deletion set: terminal + git worktree panels
+  // plus the host-shell/bash face (R4, owner 拍板移除, operators included) and
+  // the web-auth family. yingfang#31（owner 推翻 #28 对应裁决）恢复了 models /
+  // models-config / auth 三族（「模型」tab，仅运营者），从删除面移除；不恢复的
+  // OAuth login/logout 子路由维持删除（spec non-goals，直访由 Next 404）。
+  // Families re-derived from the baseline tree 2481a70 (spec A5 实查), not invented.
   const deletedApiFamilies = [
-    "auth", "models", "models-config", "terminal", "web-auth", "worktrees",
+    "terminal", "web-auth", "worktrees",
   ];
   const deletedApiNested = [
     join(root, "app", "api", "agent", "[id]", "bash-output"),
   ];
-  await record("S-E2E-01b", "删除面 API 路由目录物理不存在（terminal/worktree/models 配置/shell）", () => {
+  await record("S-E2E-01b", "删除面 API 路由目录物理不存在（terminal/worktree/shell）", () => {
     const present = [
       ...deletedApiFamilies.filter((family) => existsSync(join(root, "app", "api", family))),
       ...deletedApiNested.filter((nested) => existsSync(nested)),
@@ -241,10 +244,9 @@ async function main() {
     const deletedFaceProbes = [
       ["GET", "/api/terminal"], ["POST", "/api/terminal", {}],
       ["GET", "/api/worktrees"],
-      ["GET", "/api/models"], ["GET", "/api/models/default"],
-      ["GET", "/api/models/enabled"], ["POST", "/api/models/refresh", {}],
-      ["GET", "/api/models-config"], ["POST", "/api/models-config/discover", {}],
-      ["GET", "/api/auth/providers"],
+      // yingfang#31：models / models-config / auth 三族随「模型」tab 恢复（仅运营
+      // 者），移出删除面探针；不恢复的 catalog/refresh/login/logout 子路由直访
+      // 由 Next 404，与下面 S-E2E-01b 的目录断言分开管。
       ["GET", "/api/web-auth"],
       ["POST", "/api/agent/e2e01/bash-output", {}],
     ];

@@ -11,7 +11,8 @@ const jiti = createJiti(import.meta.url, {
 });
 const React = await jiti.import("react");
 const { renderToStaticMarkup } = await jiti.import("react-dom/server");
-const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, RUN_END_CLICK_GUARD_MS, canClearBuiltinCommandInput, canRestoreUserMessage, canRunBuiltinSlashCommandWhileStreaming, compressImageFile, cycleListIndex, getUpwardMenuMaxHeight, getUserMessageText, getUserMessageDraftImages, isExactSlashCommand, isRunEndStrayClick, modelSupportsImageInput, replaceLinksWithMarkdown, replaceTextareaRange, shouldCompressImageFile } = await jiti.import("./ChatInput.tsx");
+const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, RUN_END_CLICK_GUARD_MS, canClearBuiltinCommandInput, canRestoreUserMessage, canRunBuiltinSlashCommandWhileStreaming, compressImageFile, cycleListIndex, filterModelOptions, getUpwardMenuMaxHeight, getUserMessageText, getUserMessageDraftImages, isExactSlashCommand, isRunEndStrayClick, modelSupportsImageInput, replaceLinksWithMarkdown, replaceTextareaRange, shouldCompressImageFile } = await jiti.import("./ChatInput.tsx");
+const { ModelSelector } = await jiti.import("./ModelSelector.tsx");
 const { clearDraft, getDraft, mergeRestoredSubmissionDraft, mergeRestoredSubmissionText, rekeyDraft, setDraft } = await jiti.import("@/lib/draft-store.ts");
 const { I18nProvider } = await jiti.import("@/hooks/useI18n");
 
@@ -337,6 +338,73 @@ test("renders enabledModels scope warnings", () => {
   );
 });
 
+// yingfang#31（spec R2/R5）：ModelSelector 恢复；ChatInput 的渲染块以 operatorSession
+// 门控（AppShell 经 useYfMe 传入）——本组直调用例都带 operatorSession: true。
+test("keeps the model selector visible when a model error leaves no options", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        onModelChange() {},
+        operatorSession: true,
+        isStreaming: false,
+        modelError: "Invalid models.json schema",
+        modelList: [],
+        modelNames: {},
+      }),
+    ),
+  );
+
+  assert.match(html, />No models</);
+  assert.match(html, /title="No available models"/);
+});
+
+test("an ordinary session renders no model selector at all (yingfang#31 A6)", () => {
+  // 同入参下被渲染的 ModelSelector 在非 switching 态的 title 是 "Change model"
+  // （components/ModelSelector.tsx），所以否定断言必须瞄它——只断言
+  // "No available models"/"Switching model" 会在门控被删时仍通过（verification B2）。
+  const ordinary = React.createElement(
+    I18nProvider,
+    null,
+    React.createElement(ChatInput, {
+      onSend() {},
+      onAbort() {},
+      onModelChange() {},
+      operatorSession: false,
+      isStreaming: false,
+      model: { provider: "custom", modelId: "m" },
+      modelList: [{ provider: "custom", id: "m", name: "M" }],
+      modelNames: {},
+    }),
+  );
+  const html = renderToStaticMarkup(ordinary);
+  assert.doesNotMatch(html, /aria-haspopup="listbox"/);
+  assert.doesNotMatch(html, /title="Change model"/);
+
+  // 正向对照：同入参、operatorSession: true 时上面的否定断言必命中。
+  const operator = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        onModelChange() {},
+        operatorSession: true,
+        isStreaming: false,
+        model: { provider: "custom", modelId: "m" },
+        modelList: [{ provider: "custom", id: "m", name: "M" }],
+        modelNames: {},
+      }),
+    ),
+  );
+  assert.match(operator, /aria-haspopup="listbox"/);
+  assert.match(operator, /title="Change model"/);
+});
+
 test("renders the read-only tool preset as the active selection", () => {
   const html = renderToStaticMarkup(
     React.createElement(
@@ -447,6 +515,70 @@ test("picked files go to the chat's attach handler, or attach as images without 
     { attached: [[photo, report]], images: [], value: "" },
   );
   assert.deepEqual(pick(() => ({ onAttachFiles: undefined })), { attached: [], images: [[photo, report]], value: "" });
+});
+
+test("shows and locks the optimistic model while a switch is pending", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        onModelChange() {},
+        operatorSession: true,
+        isStreaming: false,
+        model: { provider: "deepseek", modelId: "deepseek-v4-flash" },
+        modelList: [{ provider: "deepseek", id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" }],
+        modelSwitching: true,
+      }),
+    ),
+  );
+
+  assert.match(html, /title="Switching model"/);
+  assert.match(html, /aria-busy="true"/);
+  assert.match(html, /disabled=""/);
+  assert.match(html, />DeepSeek V4 Flash</);
+  assert.match(html, /animation:spin 0\.8s linear infinite/);
+});
+
+test("filters model options by name and id", () => {
+  const options = [
+    { provider: "ollama", modelId: "qwen3:latest", name: "Qwen 3" },
+    { provider: "anthropic", modelId: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
+    { provider: "openai", modelId: "gpt-5.4", name: "GPT-5.4" },
+  ];
+
+  assert.deepEqual(filterModelOptions(options, "QWEN"), [options[0]]);
+  assert.deepEqual(filterModelOptions(options, "claude-sonnet"), [options[1]]);
+  assert.equal(filterModelOptions(options, "OpenAI").length, 0);
+  assert.equal(filterModelOptions(options, "anthropic/claude").length, 0);
+  assert.equal(filterModelOptions(options, "missing").length, 0);
+  assert.equal(filterModelOptions(options, "  "), options);
+});
+
+test("renders the shared field model selector as a disabled gray control", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ModelSelector, {
+        options: [{ provider: "openai", modelId: "gpt-5.6-sol", name: "GPT-5.6 Sol" }],
+        value: null,
+        onChange() {},
+        onClear() {},
+        emptyLabel: "Parent default",
+        ariaLabel: "Model override",
+        disabled: true,
+        variant: "field",
+      }),
+    ),
+  );
+
+  assert.match(html, /aria-label="Model override"/);
+  assert.match(html, /disabled=""/);
+  assert.match(html, /background:var\(--bg-panel\)/);
+  assert.match(html, />Parent default</);
 });
 
 test("caps an upward menu to the visible space above its anchor", () => {
@@ -954,11 +1086,16 @@ test("the kept-draft notice strings exist in every locale catalog", async () => 
   }
 });
 
-test("the chat composer carries no model selector (single LLM channel)", () => {
+// yingfang#31（owner 推翻 #28 对应裁决）：模型选择器随「模型」tab 恢复，但仅运营者。
+test("only the chat composer offers saving a default model or reasoning level, operator-gated", () => {
   const chatInputSource = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(chatInputSource, /ModelSelector/);
+  const agentsConfigSource = readFileSync(new URL("./AgentsConfig.tsx", import.meta.url), "utf8");
+  assert.match(chatInputSource, /\{operatorSession && \(modelOptions\.length > 0 \|\| model \|\| modelError\) && onModelChange && \(/);
+  assert.match(chatInputSource, /<ModelSelector[\s\S]*?defaultValue=\{defaultModel\}[\s\S]*?onSetDefault=\{onSetDefaultModel\}/);
   // "auto" means "use the default", so it never gets a star of its own.
   assert.match(chatInputSource, /star=\{onSetDefaultThinkingLevel && lvl !== "auto"/);
+  // A subagent profile's model is not the default for new chats.
+  assert.doesNotMatch(agentsConfigSource, /onSetDefault/);
 });
 
 test("selector rows keep the default star and the floating save button in one gutter", async () => {

@@ -7,7 +7,6 @@ import { join } from "node:path";
  *
  * - `gallery/<user_id>/<conv_id>/<round_id>/<idx>.<ext>` —— 画廊（不进 git）
  * - `users/<user_id>/` —— 普通用户的 agent 会话数据目录（plan step 10）
- * - `llm/config.json` —— LLM 配置（0600，key 只写不回显，plan step 6）
  * - `session-index/<sha256(token)>.json` —— 服务端身份索引（plan D2）
  */
 export function yfDataRoot(): string {

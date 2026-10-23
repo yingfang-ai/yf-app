@@ -30,6 +30,9 @@ export const OPERATOR_ONLY_ROUTE_PREFIXES = [
   "/api/provider-usage", // query（读运营者机器上的 provider 凭据）
   "/api/subagents", // profiles、settings、[id]（子代理配置/运行面）
   "/api/push", // config、subscribe（web-push：订阅者能收到会话名/会话 id 的推送，仅运营者）
+  "/api/models", // yingfang#31（spec R5/A6）：list、default、enabled 三族随「模型」tab 恢复
+  "/api/models-config", // 同上：GET/PUT、discover、test
+  "/api/auth", // 同上：api-key/[provider]、providers（OAuth login/logout 不恢复，spec non-goals）
 ] as const;
 
 export function isOperatorOnlyRoute(pathname: string): boolean {

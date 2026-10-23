@@ -15,7 +15,8 @@
 # 凭据两分（合同不变，位置更新）：tag-push 凭据（git）与运行时配置
 # （~/.config/yf-app/env：YF_DATA_DIR / YF_API_UPSTREAM / YF_OPERATOR_USER_IDS 等，
 # 可选）彼此独立，后者永不进仓库、永不进部署产物。LLM 的 key 不在这里：它由运营者
-# 经设置里的「LLM 服务」通道配置、存数据根（0600，yingfang#28 R3），部署不再带 key。
+# 经设置的「模型」tab 配置、存服务端 agent 目录（models.json / auth.json，0600，
+# yingfang#31——旧「LLM 服务」通道已移除），部署不再带 key。
 #
 # 本地部署形态（对应 docs/deploy.md 的同源反代拓扑，本机 pilot 版）：
 #

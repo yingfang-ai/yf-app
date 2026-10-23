@@ -33,6 +33,9 @@ import { useChatAppearance } from "@/hooks/useChatAppearance";
 import { useFontPreferences } from "@/hooks/useFontPreferences";
 import type { ToolPreset } from "@/lib/tool-presets";
 import { SelectorRow } from "./SelectorRow";
+import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
+
+export { filterModelOptions } from "./ModelSelector";
 
 export interface AttachedImage {
   data: string;   // base64, no prefix
@@ -57,6 +60,11 @@ interface Props {
   /** Diagnostics from resolving `enabledModels`, e.g. a pattern that matched nothing. */
   modelScopeWarnings?: string[];
   onModelChange?: (provider: string, modelId: string) => void;
+  /**
+   * yingfang#31（spec R5/A6）：会话内 ModelSelector 仅运营者——普通用户不渲染
+   * （AppShell 用共享读面 useYfMe 判定后传入；模型固定为服务端定的全站默认）。
+   */
+  operatorSession?: boolean;
   modelSwitching?: boolean;
   /** The model new sessions start with, starred in the model selector. */
   defaultModel?: { provider: string; modelId: string } | null;
@@ -642,7 +650,7 @@ export function ModelScopeWarningBanner({ warnings }: { warnings?: string[] }) {
 // chat around it re-renders through both.
 export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatInput({
   onSend, onAbort, onSteer, onFollowUp, isStreaming, model, isAutoModelSelection, modelNames, modelList, modelError, modelScopeWarnings, onModelChange, modelSwitching,
-  defaultModel, onSetDefaultModel,
+  defaultModel, onSetDefaultModel, operatorSession,
   onCompact, onAbortCompaction, isCompacting, compactError, onDismissCompactError, compactResult, toolPreset, onToolPresetChange,
   thinkingLevel, isAutoThinkingSelection = false, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap,
   savedDefaultThinkingLevel, onSetDefaultThinkingLevel,
@@ -1697,6 +1705,19 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     });
   }, [atMenuOpen, atQuery]);
 
+  // Build model options: prefer modelList (has provider info), fallback to modelNames
+  const modelOptions: ModelSelectorOption[] = (() => {
+    if (modelList && modelList.length > 0) {
+      return modelList.map((m) => ({ provider: m.provider, modelId: m.id, name: m.name }));
+    }
+    return Object.entries(modelNames ?? {}).map(([modelId, name]) => ({
+      provider: model?.provider ?? "unknown",
+      modelId,
+      name,
+    }));
+  })();
+
+
   const compactSavedTokens = compactResult
     ? Math.max(0, compactResult.tokensBefore - compactResult.estimatedTokensAfter)
     : 0;
@@ -2566,6 +2587,20 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 <polyline points="21 15 16 10 5 21" />
               </svg>
             </button>
+            {/* Model selector - yingfang#31（spec R5/A6）：仅运营者渲染（operatorSession
+                由 AppShell 经共享读面 useYfMe 判定传入）；disabled while busy */}
+            {operatorSession && (modelOptions.length > 0 || model || modelError) && onModelChange && (
+              <ModelSelector
+                options={modelOptions}
+                value={model}
+                onChange={onModelChange}
+                disabled={isStreaming}
+                busy={modelSwitching}
+                isAutoSelection={isAutoModelSelection}
+                defaultValue={defaultModel}
+                onSetDefault={onSetDefaultModel}
+              />
+            )}
           </div>
 
           {/* spacer */}

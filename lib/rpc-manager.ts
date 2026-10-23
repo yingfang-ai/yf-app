@@ -2,7 +2,6 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, ModelRuntime, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import { isUserDataCwd } from "./yf/user-dirs";
 import { loadGuideSkillPrompt } from "./yf/guide-skill";
-import { LLM_CHANNEL_PROVIDER_ID, llmChannelModelRuntime, readLlmConfig } from "./yf/llm-config";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import { randomUUID } from "crypto";
 import { existsSync, realpathSync, writeFileSync } from "fs";
@@ -2585,26 +2584,24 @@ export async function startRpcSession(
             : {}),
         }
       : undefined;
-    // 单一 LLM 通道（plan step 6，spec R3）：普通会话（非 subagent）的模型解析从通道取
-    // （base_url/key/model_id 只在服务端进程内，key 不进浏览器字节）。未配置的**新**会话
-    // 明确报错、不静默兑底（调用方显式给了 initialModel 的运营者路径除外）；恢复的会话（sessionFile）无通道也可打开（模型解析不到时由
-    // SDK 如实报错）。subagent 会话由其 profile 自解析，不经此通道。
-    let channelRuntime: ModelRuntime | undefined;
-    let channelModel: { provider: string; modelId: string } | undefined;
-    if (!subagentResources) {
-      const channel = readLlmConfig();
-      if (channel) {
-        channelRuntime = await llmChannelModelRuntime(channel);
-        channelModel = { provider: LLM_CHANNEL_PROVIDER_ID, modelId: channel.model_id };
-      } else if (!sessionFile && !initialModel) {
-        throw new Error("LLM 配置通道未配置：请让运营者在设置里配置 LLM 服务（base_url / key / model_id）后重试");
-      }
+    // yingfang#31（spec R8/R9，plan A4/A5）：单一「LLM 服务」通道已整体移除——
+    // 普通会话（非 subagent）的模型 = 运营者在「模型」tab 设的全站默认模型
+    // （agent 全局 settings，「设为默认」的写入处）。未设默认的**新**会话明确报
+    // 「未配置」并指向「模型」tab，不从已启用模型里静默挑（调用方显式给了
+    // initialModel 的运营者路径除外）；恢复的会话（sessionFile）无默认也可打开。
+    // subagent 会话由其 profile 自解析，不经此路径。
+    const siteDefaultProvider = settingsManager.getDefaultProvider();
+    const siteDefaultModelId = settingsManager.getDefaultModel();
+    const siteDefaultModel = siteDefaultProvider && siteDefaultModelId
+      ? { provider: siteDefaultProvider, modelId: siteDefaultModelId }
+      : undefined;
+    if (!subagentResources && !initialModel && !siteDefaultModel && !sessionFile) {
+      throw new Error("全站默认模型未配置：请让运营者在设置「模型」tab 里设置默认模型后重试");
     }
     const services = await createAgentSessionServices({
       cwd: sessionCwd,
       agentDir,
       settingsManager,
-      ...(channelRuntime ? { modelRuntime: channelRuntime } : {}),
       resourceLoaderOptions: subagentResources
         ? {
             ...subagentExtensionLoaderOptions(subagentResources),
@@ -2664,8 +2661,9 @@ export async function startRpcSession(
     );
     // A provider an extension registers only at session_start (lib/deferred-provider-models.ts)
     // has no model in this runtime yet: build on the default, switch once extensions are bound.
-    // The requested model is the caller's explicit choice, or the LLM channel's model (step 6).
-    const requestedModel = initialModel ?? channelModel;
+    // The requested model is the caller's explicit choice; the site default
+    // flows in through the defaultModel option below (selectInitialModelScope).
+    const requestedModel = initialModel;
     const deferredInitialModel = requestedModel && !services.modelRuntime.getModel(requestedModel.provider, requestedModel.modelId)
       ? findDeferredModel(services.modelRuntime, requestedModel.provider, requestedModel.modelId)
       : undefined;
@@ -2687,8 +2685,18 @@ export async function startRpcSession(
     const savedModel = hasExistingMessages
       ? getLatestModelChange(branch as unknown as SessionEntry[])
       : null;
-    const restoredModel = savedModel
-      ? services.modelRuntime.getModel(savedModel.provider, savedModel.modelId)
+    // yingfang#31（plan A5）：历史会话记录的模型 provider 是已移除的单一通道
+    // （"yf-llm"）时，回落到当前全站默认模型继续对话——不因通道移除而打不开；
+    // 默认也没配 → 按 A4 的「未配置」口径报错。subagent 会话不经此路径。
+    let effectiveSavedModel = savedModel;
+    if (!subagentResources && savedModel?.provider === "yf-llm") {
+      if (!siteDefaultModel) {
+        throw new Error("全站默认模型未配置：请让运营者在设置「模型」tab 里设置默认模型后重试");
+      }
+      effectiveSavedModel = siteDefaultModel;
+    }
+    const restoredModel = effectiveSavedModel
+      ? services.modelRuntime.getModel(effectiveSavedModel.provider, effectiveSavedModel.modelId)
       : undefined;
     const initial = hasExistingMessages ? null : selectInitialModelScope(scope, {
         ...(effectiveInitialModel ? { requestedModel: effectiveInitialModel } : {}),
@@ -2701,8 +2709,8 @@ export async function startRpcSession(
       ? restoredModel
       : initial?.model;
     const deferredModel = hasExistingMessages
-      ? savedModel && !restoredModel
-        ? findDeferredModel(services.modelRuntime, savedModel.provider, savedModel.modelId)
+      ? effectiveSavedModel && !restoredModel
+        ? findDeferredModel(services.modelRuntime, effectiveSavedModel.provider, effectiveSavedModel.modelId)
         : undefined
       : deferredInitialModel;
     // The extension's model a Chat-only session wanted (saved, chosen or default); a prompt names

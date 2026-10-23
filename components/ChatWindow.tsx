@@ -64,6 +64,11 @@ interface Props {
   onSessionCreated?: (session: SessionInfo, sourceDraftKey: string) => void;
   onSessionForked?: (newSessionId: string) => void;
   modelsRefreshKey?: number;
+  /**
+   * yingfang#31（spec R5/A6）：会话内 ModelSelector 仅运营者——AppShell 用共享读面
+   * useYfMe 判定后传入；透传给 useAgentSession（不发 /api/models）与 ChatInput（不渲染）。
+   */
+  operatorSession?: boolean;
   chatInputRef?: React.RefObject<ChatInputHandle | null>;
   onBranchDataChange?: (tree: SessionTreeNode[], activeLeafId: string | null, onLeafChange: (leafId: string | null) => void, locked: boolean) => void;
   onSystemPromptChange?: (prompt: string | null) => void;
@@ -235,7 +240,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
   );
 }
 
-export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, isActivePane = true, newSessionCwd, newSessionDraftKey, onAgentEnd, onToolEnd, onAttentionNeeded, onBackgroundTasksEvent, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, externalSessionChange, onOpenFile, onFilesUploaded, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio, holdAudio }: Props) {
+export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, isActivePane = true, newSessionCwd, newSessionDraftKey, onAgentEnd, onToolEnd, onAttentionNeeded, onBackgroundTasksEvent, onSessionCreated, onSessionForked, modelsRefreshKey, operatorSession, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, externalSessionChange, onOpenFile, onFilesUploaded, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio, holdAudio }: Props) {
   const { t } = useI18n();
   const isMobile = useIsMobile();
   const completionNotificationsEnabled = session?.relation?.kind !== "subagent";
@@ -290,7 +295,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
     refreshFromDisk,
   } = useAgentSession({
     session, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd: wrappedOnAgentEnd, onToolEnd, onAttentionNeeded, onBackgroundTasksEvent, onSessionCreated, onSessionForked,
-    modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsPanelOpen,
+    modelsRefreshKey, operatorSession, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsPanelOpen,
     deferInitialScroll: Boolean(pendingScrollRestore),
   });
   // Only whether a reply is streaming and has content yet: the chunks themselves
@@ -1024,6 +1029,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
       modelSwitching={modelSwitching}
       defaultModel={defaultModel}
       onSetDefaultModel={handleSetDefaultModel}
+      operatorSession={operatorSession}
       onCompact={session || isNew ? handleCompact : undefined}
       onAbortCompaction={handleAbortCompaction}
       isCompacting={isCompacting}
@@ -1038,7 +1044,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
       availableThinkingLevels={availableThinkingLevels}
       thinkingLevelMap={currentThinkingLevelMap}
       savedDefaultThinkingLevel={savedDefaultThinkingLevel}
-      onSetDefaultThinkingLevel={undefined}
+      onSetDefaultThinkingLevel={operatorSession && (session || isNew) ? handleSetDefaultThinkingLevel : undefined}
       retryInfo={retryInfo}
       queuedMessages={queuedMessages}
       inputHistory={inputHistory}

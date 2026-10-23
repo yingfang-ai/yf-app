@@ -292,6 +292,9 @@ async function main() {
         YF_DATA_DIR: dataDir,
         YF_API_UPSTREAM: contractUrl,
         YF_OPERATOR_USER_IDS: OPERATOR_USER_ID,
+        // yingfang#31：S-B02/S-B03 经「模型」面配默认模型，运营者 cwd 走登记前缀
+        // （/api/models/default 的 cwd 守卫与 /api/agent/new 同一事实）。
+        PI_WEB_ALLOWED_ROOT_PREFIXES: root,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -385,27 +388,45 @@ async function main() {
       assert.equal((await yf("GET", "/me", undefined, cookie)).status, 401, "登出后旧会话仍有效");
     });
 
-    // -- S-B02 LLM 配置通道 ---------------------------------------------------
-    await record("S-B02", "单一 LLM 配置通道仅运营者可配可读、key 只写不回显", async () => {
+    // -- S-B02 「模型」面（yingfang#31 改写：原单一通道已删，断言改指新面） --------
+    await record("S-B02", "「模型」面仅运营者可配、key 只写不回显、默认模型可设", async () => {
       const opId = await register(OPERATOR_INVITE, "recovery-sb02");
       assert.equal(opId, OPERATOR_USER_ID, "运营者邀请没有返回固定 user_id");
       const opCookie = await login(OPERATOR_USER_ID, "recovery-sb02");
       const me = await yf("GET", "/me", undefined, opCookie);
       assert.equal(me.json?.operator, true, "固定运营者 user_id 未被判定为运营者");
-      const put = await yf("PUT", "/llm-config",
-        { base_url: llmUrl, key: "e2e-key-xyz", model_id: "e2e-model" }, opCookie);
-      assert.ok(put.status >= 200 && put.status < 300, `PUT /api/yf/llm-config -> ${put.status}`);
-      const got = await yf("GET", "/llm-config", undefined, opCookie);
-      assert.equal(got.status, 200);
-      assert.equal(got.json?.base_url, llmUrl);
-      assert.equal(got.json?.model_id, "e2e-model");
-      assert.equal(got.json?.key_configured, true);
-      assert.ok(!got.text.includes("e2e-key-xyz"), "GET llm-config 回显了 key");
+      // 旧通道已整体移除（AC1）：直访一律 404，不再有降级路径。
+      assert.equal((await yf("GET", "/llm-config", undefined, opCookie)).status, 404);
+      assert.equal((await yf("PUT", "/llm-config",
+        { base_url: llmUrl, key: "x", model_id: "y" }, opCookie)).status, 404);
+      // 运营者经「模型」面配置自定义 provider（models-config PUT/GET）。
+      const put = await call("PUT", "/api/models-config", {
+        providers: {
+          "e2e-sb": {
+            baseUrl: llmUrl, api: "openai-completions", apiKey: "e2e-key-xyz",
+            models: [{ id: "e2e-model", name: "E2E 模型" }],
+          },
+        },
+      }, opCookie);
+      assert.ok(put.status >= 200 && put.status < 300, `PUT /api/models-config -> ${put.status}: ${put.text.slice(0, 200)}`);
+      const got = await call("GET", "/api/models-config", undefined, opCookie);
+      assert.equal(got.status, 200, `GET /api/models-config -> ${got.status}`);
+      const entry = got.json?.providers?.["e2e-sb"];
+      assert.ok(entry, `models-config 读回缺 e2e-sb: ${got.text.slice(0, 200)}`);
+      assert.equal(entry.baseUrl, llmUrl);
+      assert.equal(entry.key_configured, true, "读回缺「已配置」标记");
+      assert.ok(!got.text.includes("e2e-key-xyz"), "models-config 读回出现了 key 字节");
+      // 全站默认模型写入（「设为默认」）。
+      const def = await call("PUT", "/api/models/default",
+        { cwd: root, provider: "e2e-sb", modelId: "e2e-model" }, opCookie);
+      assert.ok(def.status >= 200 && def.status < 300, `PUT /api/models/default -> ${def.status}: ${def.text.slice(0, 200)}`);
+      // 可见性边界（AC5 的代表探针；全族见 yf-models-behavior S-M07）。
       const userId = await register("e2e-invite-b", "recovery-sb02u");
       const userCookie = await login(userId, "recovery-sb02u");
-      assert.equal((await yf("GET", "/llm-config", undefined, userCookie)).status, 403);
-      assert.equal((await yf("PUT", "/llm-config", { base_url: llmUrl, key: "x", model_id: "y" }, userCookie)).status, 403);
-      assert.equal((await yf("GET", "/llm-config")).status, 401);
+      assert.equal((await call("GET", "/api/models-config", undefined, userCookie)).status, 403);
+      assert.equal((await call("PUT", "/api/models-config", {}, userCookie)).status, 403);
+      assert.equal((await call("PUT", "/api/models/default", {}, userCookie)).status, 403);
+      assert.equal((await call("GET", "/api/models-config")).status, 401);
     });
 
     // -- S-B03 新对话默认进入引导 skill ----------------------------------------
@@ -416,9 +437,11 @@ async function main() {
       assert.ok(skill.includes(GUIDE_MARKER), `SKILL.md 缺少稳定标记 ${GUIDE_MARKER}（e2e 观测锚）`);
       assert.ok(skill.includes("草案"), "SKILL.md 未定义草案产出");
       const opCookie = await login(OPERATOR_USER_ID, "recovery-sb02");
-      const put = await yf("PUT", "/llm-config",
-        { base_url: llmUrl, key: "e2e-key-xyz", model_id: "e2e-model" }, opCookie);
-      assert.ok(put.status >= 200 && put.status < 300, `PUT llm-config -> ${put.status}`);
+      // yingfang#31：S-B02 已配好 provider 与全站默认模型，这里只需确认新会话的
+      // LLM 请求带引导 skill 标记（模型经默认模型解析，不再有单独通道）。
+      const put = await call("PUT", "/api/models/default",
+        { cwd: root, provider: "e2e-sb", modelId: "e2e-model" }, opCookie);
+      assert.ok(put.status >= 200 && put.status < 300, `PUT /api/models/default -> ${put.status}: ${put.text.slice(0, 200)}`);
       const userId = await register("e2e-invite-c", "recovery-sb03");
       const cookie = await login(userId, "recovery-sb03");
       llmRequests.length = 0;

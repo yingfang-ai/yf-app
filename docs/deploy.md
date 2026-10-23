@@ -54,28 +54,34 @@ server {
 | `YF_DATA_DIR` | 数据根，缺省 `~/.local/share/yf-app` |
 | `YF_OPERATOR_USER_IDS` | 逗号分隔的运营者 user_id，与 `config/operators.json` 取并集（e2e/部署引导缝） |
 
-**LLM 配置不走环境变量**：运营者登录后在设置的「LLM 服务」里填 base_url / key /
-model_id，存 `<数据根>/llm/config.json`（0600，只写不回显、不进仓、不进日志）。
-未配置时新对话明确报错、不静默兜底。
+**模型配置不走环境变量**：运营者登录后在设置的「模型」tab 里配置自定义 provider
+（服务地址 / API key / headers / 模型列表 / 启停 / 全站默认模型）与内置 provider 的
+API key。存服务端 agent 目录：`models.json`（自定义 provider）与 `auth.json`（内置
+key），均 0600、原子写、只写不回显（读回只见「已配置」标记）、不进仓、不进日志；
+key 与 headers 值只收字面量。**上线后需重填一次**：yingfang#31 移除了旧「LLM 服务」
+通道（`llm/config.json` 不迁移），重填完成前新会话按「全站默认模型未配置」口径明确
+报错，不静默兜底、也不从已启用模型里挑。
 
 ## 数据根布局（全部不进 git）
 
 ```
 <数据根>/gallery/<user_id>/<conv_id>/<round_id>/<idx>.<ext>   画廊（done 轮落盘）
 <数据根>/users/<user_id>/                                     普通用户会话的 cwd
-<数据根>/llm/config.json                                      LLM 配置（0600）
 <数据根>/session-index/<sha256(token)>.json                   服务端身份索引
 ```
+
+模型配置不落数据根：自定义 provider 配置与内置 provider key 在**服务端 agent
+目录**（`models.json` / `auth.json`，0600、原子写、不进 git/构建产物）。
 
 ## 运营者名单
 
 `config/operators.json`：`{"operatorUserIds": ["<32hex>", …]}`，只含 user_id、不含任何
-凭据，可进仓。运营者可用 skills 安装 / plugins / app-update / 任意目录浏览 / LLM 配置；
+凭据，可进仓。运营者可用 skills 安装 / plugins / app-update / 任意目录浏览 / 模型配置；
 普通用户直访这些面返回 403。
 
 ## 上线核对
 
-- [ ] 浏览器 devtools 里可见的任何请求/响应/JS bundle 中无 LLM key。
+- [ ] 浏览器 devtools 里可见的任何请求/响应/JS bundle 中无 LLM key（读回接口只含「已配置」标记）。
 - [ ] 登录后 `yf_session` cookie 属性为 `HttpOnly; SameSite=Lax; Path=/`。
 - [ ] 全部契约请求与页面同源，响应无 `Access-Control-*` 头。
 - [ ] 反代没有把 `/api/*` 转给 yingfang（一律落 yf-app）。
@@ -107,7 +113,7 @@ model_id，存 `<数据根>/llm/config.json`（0600，只写不回显、不进�
 
 ```bash
 # 可选：运行环境（XDG 配置位，与部署产物分离）。LLM key 不在这里——部署后由
-# 运营者在设置里配置。
+# 运营者在设置的「模型」tab 里配置（存服务端 agent 目录，yingfang#31）。
 mkdir -p ~/.config/yf-app
 cat > ~/.config/yf-app/env <<'ENV'
 YF_OPERATOR_USER_IDS=<运营者 user_id>   # 可选，与 config/operators.json 并集
@@ -138,5 +144,6 @@ presign）转给 yingfang（`:9701`）。本地把整链跑起来需要：
 
 1. yingfang `app/api` 指向一个本地 PostgreSQL（`deploy/db.toml` 声明连接路径，
    schema 迁移跑齐），邀请码按裁决由 owner 手工插入；
-2. 运营者在设置里配好「LLM 服务」，聊天栏引导才可用；
+2. 运营者在设置的「模型」tab 里配好 provider 并设全站默认模型（上线后重填一次），
+   聊天栏引导才可用；
 3. `deploy.sh` 只管 yf-app 这一个面——yingfang 侧服务的启停是它自己的运维面。

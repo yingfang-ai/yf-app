@@ -36,6 +36,8 @@ async function sendAndSwitch(stage) {
   };
   globalThis.fetch = async (url, init = {}) => {
     const command = init.body ? JSON.parse(init.body) : null;
+    // yingfang#31：loadModels 恢复真实 fetch（运营者会话）——桩掉目录请求。
+    if (url.startsWith("/api/models")) return json({ models: {}, modelList: [] });
     if (url === "/api/agent/new") return creation.promise;
     if (url === "/api/agent/s1" && command) {
       commands.push(command.type);
